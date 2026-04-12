@@ -130,7 +130,7 @@ exports.getFeed = async (req, res, next) => {
   }
 };
 
-exports.getProjectById = async (req, res) => {
+exports.getProjectById = async (req, res, next) => {
   try {
     const project = await Project.findById(req.params.id)
       .populate('owner', 'username fullName profileImage campus branch')
@@ -145,7 +145,7 @@ exports.getProjectById = async (req, res) => {
   }
 };
 
-exports.getUserProjects = async (req, res) => {
+exports.getUserProjects = async (req, res, next) => {
   console.log('Fetching projects for user ID:', req.params.userId);
   try {
     const projects = await Project.find({
@@ -163,7 +163,7 @@ exports.getUserProjects = async (req, res) => {
   }
 };
 
-exports.likeProject = async (req, res) => {
+exports.likeProject = async (req, res, next) => {
   console.log(`User ${req.user.id} is toggling like on project ${req.params.id}`);
   try {
     const project = await Project.findById(req.params.id);
@@ -192,7 +192,7 @@ exports.likeProject = async (req, res) => {
   }
 };
 
-exports.saveProject = async (req, res) => {
+exports.saveProject = async (req, res, next) => {
   try {
     const project = await Project.findById(req.params.id);
     const user = await User.findById(req.user.id);
@@ -291,7 +291,7 @@ exports.getCollabRequests = async (req, res) => {
   }
 };
 
-exports.acceptCollabRequest = async (req, res) => {
+exports.acceptCollabRequest = async (req, res, next) => {
   try {
     const { requestId } = req.body;
     const project = await Project.findById(req.params.id);
@@ -335,7 +335,7 @@ exports.acceptCollabRequest = async (req, res) => {
   }
 };
 
-exports.rejectCollabRequest = async (req, res) => {
+exports.rejectCollabRequest = async (req, res, next) => {
   try {
     const { requestId } = req.body;
     const project = await Project.findById(req.params.id);
@@ -378,7 +378,7 @@ exports.rejectCollabRequest = async (req, res) => {
   }
 };
 
-exports.updateProject = async (req, res) => {
+exports.updateProject = async (req, res, next) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'Project not found' });
@@ -435,7 +435,7 @@ exports.updateProject = async (req, res) => {
   }
 };
 
-exports.deleteProject = async (req, res) => {
+exports.deleteProject = async (req, res, next) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'Project not found' });
@@ -459,7 +459,7 @@ exports.deleteProject = async (req, res) => {
   }
 };
 
-exports.getRecommendedProjects = async (req, res) => {
+exports.getRecommendedProjects = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -485,7 +485,7 @@ exports.getRecommendedProjects = async (req, res) => {
   }
 };
 
-exports.getProjectMatchScore = async (req, res) => {
+exports.getProjectMatchScore = async (req, res, next) => {
   try {
     const project = await Project.findById(req.params.id);
     const user = await User.findById(req.user.id);
@@ -498,7 +498,7 @@ exports.getProjectMatchScore = async (req, res) => {
   }
 };
 
-exports.getRecommendedProjectsWithMatchScore = async (req, res) => {
+exports.getRecommendedProjectsWithMatchScore = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -556,7 +556,7 @@ exports.getChatHistory = async (req, res) => {
   }
 };
 
-exports.getUserDiscussions = async (req, res) => {
+exports.getUserDiscussions = async (req, res, next) => {
   try {
     // Find projects where the user is either the owner or a collaborator
     const projects = await Project.find({

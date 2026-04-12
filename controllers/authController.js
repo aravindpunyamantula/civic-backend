@@ -102,6 +102,11 @@ exports.login = async (req, res, next) => {
       return res.status(400).json({ message: 'User not found' });
     }
 
+    // Check if user is blocked
+    if (user.isBlocked) {
+      return res.status(403).json({ message: 'Your account has been blocked. Please contact the administrator.' });
+    }
+
     // Validate password using the model's instance method
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
@@ -123,7 +128,8 @@ exports.login = async (req, res, next) => {
         fullName: user.fullName,
         rollNumber: user.rollNumber,
         campus: user.campus,
-        branch: user.branch
+        branch: user.branch,
+        isAdmin: user.isAdmin
       },
     });
   } catch (err) {

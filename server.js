@@ -20,6 +20,7 @@ const projectRoutes = require('./routes/projectRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const problemRoutes = require('./routes/problemRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Middleware
 const logger = require('./middleware/logger');
@@ -40,7 +41,16 @@ app.set('trust proxy', 1);
 app.set('io', io);
 
 // Security Headers
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      "script-src": ["'self'", "https://unpkg.com", "'unsafe-inline'", "'unsafe-eval'"],
+      "img-src": ["*", "data:", "blob:"],
+      "connect-src": ["'self'", "https://api.cloudinary.com"],
+    },
+  },
+}));
 
 // Logging Middleware
 app.use(morgan('combined', { 
@@ -49,6 +59,7 @@ app.use(morgan('combined', {
 
 app.use(express.json({ limit: '10mb' }));
 app.use(cors());
+app.use(express.static('public'));
 
 // Apply Rate Limiting
 app.use('/api/auth', authLimiter); // Specific auth limits first
@@ -94,6 +105,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/problems', problemRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error Handling Middleware (Must be last)
 app.use(errorHandler);
