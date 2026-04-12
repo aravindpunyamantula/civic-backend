@@ -14,10 +14,10 @@ const clearCacheByPrefix = async (prefix) => {
       // Use unlink for non-blocking deletion if possible (Redis 4.0+)
       const delMethod = redisClient.unlink ? 'unlink' : 'del';
       await redisClient[delMethod](keys);
-      logger.info(`Cleared \${keys.length} cache keys with prefix: \${prefix}`);
+      logger.info(`Cleared ${keys.length} cache keys with prefix: ${prefix}`);
     }
   } catch (err) {
-    logger.error(`Error clearing cache for prefix \${prefix}:`, err);
+    logger.error(`Error clearing cache for prefix ${prefix}:`, err);
   }
 };
 
@@ -29,7 +29,7 @@ const clearMultiplePrefixes = async (prefixes) => {
   try {
     const allKeys = [];
     for (const prefix of prefixes) {
-      const pattern = `civic:cache:\${prefix}:*`;
+      const pattern = `civic:cache:${prefix}:*`;
       const keys = await redisClient.keys(pattern);
       if (keys.length > 0) {
         allKeys.push(...keys);
@@ -39,7 +39,7 @@ const clearMultiplePrefixes = async (prefixes) => {
     if (allKeys.length > 0) {
       const delMethod = redisClient.unlink ? 'unlink' : 'del';
       await redisClient[delMethod](allKeys);
-      logger.info(`Cleared \${allKeys.length} cache keys for prefixes: \${prefixes.join(', ')}`);
+      logger.info(`Cleared ${allKeys.length} cache keys for prefixes: ${prefixes.join(', ')}`);
     }
   } catch (err) {
     logger.error(`Error clearing multiple cache prefixes:`, err);

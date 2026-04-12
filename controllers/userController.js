@@ -34,9 +34,13 @@ exports.getUserProfile = async (req, res, next) => {
 exports.updateUserProfile = async (req, res, next) => {
   try {
     const { fullName, bio, skills, profileImage, portfolio, github, leetcode, codechef, gfg, linkedin } = req.body;
+    
+    logger.info(`Profile update request received for user: ${req.user.id}`);
+
     const user = await User.findById(req.user.id);
 
     if (!user) {
+      logger.warn(`User not found: ${req.user.id}`);
       return res.status(404).json({ message: 'User not found' });
     }
 
@@ -51,16 +55,28 @@ exports.updateUserProfile = async (req, res, next) => {
     if (gfg !== undefined) user.gfg = gfg;
     if (linkedin !== undefined) user.linkedin = linkedin;
 
+    logger.info(`Saving profile for user: ${user.username}`);
     const updatedUser = await user.save();
-    await clearCacheByPrefix('profile');
-    logger.info(`Profile updated for user: \${user.username}`);
+    
+    // Use non-blocking cache clear
+    clearCacheByPrefix('profile').catch(err => {
+        logger.error(`Cache clear failed for prefix 'profile':`, err);
+    });
+
+    logger.info(`Profile updated for user: ${user.username}`);
 
     const userResponse = updatedUser.toObject();
     delete userResponse.password;
 
     res.status(200).json(userResponse);
   } catch (error) {
-    next(error);
+    logger.error(`Error updating user profile for ID ${req.user.id}:`, error);
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        message: 'Failed to update profile due to a server error', 
+        error: process.env.NODE_ENV === 'production' ? undefined : error.message 
+      });
+    }
   }
 };
 
@@ -155,7 +171,7 @@ exports.followUser = async (req, res, next) => {
       // Invalidate relevant caches (Optimized batch clear)
       await clearMultiplePrefixes(['profile', 'user_search']);
       
-      logger.info(`User \${req.user.id} followed \${req.params.id}`);
+      logger.info(`User ${req.user.id} followed ${req.params.id}`);
       return res.status(200).json({ 
         message: 'User followed successfully',
         followersCount: targetUser.followers.length,
@@ -228,7 +244,7 @@ exports.deleteUser = async (req, res, next) => {
     );
 
     await User.findByIdAndDelete(user._id);
-    logger.info(`User account deleted: \${user.username}`);
+    logger.info(`User account deleted: ${user.username}`);
 
     res.status(200).json({ message: 'User account deleted successfully' });
   } catch (error) {

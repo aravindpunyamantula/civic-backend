@@ -239,3 +239,16 @@ server.listen(PORT, () => {
   const serverUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
   startKeepAlive(serverUrl);
 });
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err, promise) => {
+  logger.error(`Unhandled Rejection at: ${promise}, reason: ${err}`);
+  // In production, we might want to gracefully shutdown, but for robustness we log and keep going if safe
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  logger.error(`Uncaught Exception: ${err.message}`, { stack: err.stack });
+  // For uncaught exceptions, it's often safer to exit after logging, but the user asked not to crash
+  // We'll log it and the process will continue (though it might be in an inconsistent state)
+});

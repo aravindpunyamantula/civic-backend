@@ -9,7 +9,7 @@ const apiLimiter = rateLimit({
     message: 'Too many requests from this IP, please try again after 15 minutes'
   },
   handler: (req, res, next, options) => {
-    logger.warn(`Rate limit exceeded for IP: \${req.ip} on \${req.originalUrl}`);
+    logger.warn(`Rate limit exceeded for IP: ${req.ip} on ${req.originalUrl}`);
     res.status(options.statusCode).send(options.message);
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
