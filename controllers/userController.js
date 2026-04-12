@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Project = require('../models/Project');
 const Comment = require('../models/Comment');
 const { calculateMatchScore } = require('../utils/matchingEngine');
+const { clearCacheByPrefix, clearMultiplePrefixes } = require('../utils/cacheUtils');
 const logger = require('../middleware/logger');
 
 // Fetch user profile
@@ -47,6 +48,7 @@ exports.updateUserProfile = async (req, res, next) => {
     if (linkedin !== undefined) user.linkedin = linkedin;
 
     const updatedUser = await user.save();
+    await clearCacheByPrefix('profile');
     logger.info(`Profile updated for user: \${user.username}`);
 
     const userResponse = updatedUser.toObject();
@@ -118,6 +120,10 @@ exports.followUser = async (req, res, next) => {
       targetUser.followers.push(currentUser._id);
       await currentUser.save();
       await targetUser.save();
+      
+      // Invalidate relevant caches (Optimized batch clear)
+      await clearMultiplePrefixes(['profile', 'user_search']);
+      
       logger.info(`User \${req.user.id} followed \${req.params.id}`);
       return res.status(200).json({ 
         message: 'User followed successfully',
@@ -146,6 +152,8 @@ exports.unfollowUser = async (req, res, next) => {
     if (isFollowing) {
       await User.findByIdAndUpdate(req.user.id, { $pull: { following: targetUser._id } });
       await User.findByIdAndUpdate(targetUser._id, { $pull: { followers: currentUser._id } });
+      
+      await clearMultiplePrefixes(['profile', 'user_search']);
       
       logger.info(`User ${req.user.id} unfollowed ${req.params.id}`);
       return res.status(200).json({ 

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { clearMultiplePrefixes } = require('../utils/cacheUtils');
 const logger = require('../middleware/logger');
 
 // Signup logic
@@ -63,6 +64,8 @@ exports.signup = async (req, res, next) => {
     });
 
     await newUser.save();
+    await clearMultiplePrefixes(['user_search']);
+    logger.info(`New user registered: ${newUser.username}`);
 
     const token = newUser.generateAuthToken();
     const refreshToken = newUser.generateRefreshToken();

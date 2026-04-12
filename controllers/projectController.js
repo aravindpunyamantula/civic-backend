@@ -4,7 +4,7 @@ const Message = require('../models/Message');
 const Notification = require('../models/Notification');
 const { normalizeSkills } = require('../utils/skillUtils');
 const { calculateMatchScore } = require('../utils/matchingEngine');
-const { clearCacheByPrefix } = require('../utils/cacheUtils');
+const { clearCacheByPrefix, clearMultiplePrefixes } = require('../utils/cacheUtils');
 const logger = require('../middleware/logger');
 
 exports.createProject = async (req, res, next) => {
@@ -183,8 +183,9 @@ exports.likeProject = async (req, res, next) => {
 
     await project.save();
     await user.save();
-    await clearCacheByPrefix('profile');
-    await clearCacheByPrefix('feed');
+    
+    // Clear relevant caches for real-time consistency (Optimized batch clear)
+    await clearMultiplePrefixes(['profile', 'feed', 'user_projects', 'project_detail']);
 
     res.status(200).json({ message: isLiked ? 'Unliked' : 'Liked', likesCount: project.likes.length });
   } catch (error) {
@@ -211,8 +212,9 @@ exports.saveProject = async (req, res, next) => {
 
     await project.save();
     await user.save();
-    await clearCacheByPrefix('profile');
-    await clearCacheByPrefix('feed');
+    
+    // Clear relevant caches (Optimized batch clear)
+    await clearMultiplePrefixes(['profile', 'feed', 'user_projects', 'project_detail']);
 
     res.status(200).json({ message: isSaved ? 'Unsaved' : 'Saved', savesCount: project.saves.length });
   } catch (error) {
@@ -422,8 +424,9 @@ exports.updateProject = async (req, res, next) => {
     }
 
     await project.save();
-    await clearCacheByPrefix('feed');
-    await clearCacheByPrefix('user_projects');
+    
+    // Clear all related caches (Optimized batch clear)
+    await clearMultiplePrefixes(['feed', 'user_projects', 'project_detail']);
 
     // Populate owner before returning
     const populatedProject = await Project.findById(project._id)
