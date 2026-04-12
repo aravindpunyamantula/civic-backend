@@ -36,6 +36,7 @@ const io = socketio(server, {
 });
 
 const PORT = process.env.PORT || 5000;
+app.set('trust proxy', 1);
 app.set('io', io);
 
 // Security Headers

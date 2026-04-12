@@ -1,6 +1,6 @@
 const http = require('http');
 
-const baseURL = 'localhost';
+const baseURL = process.env.BASE_URL || '';
 const port = 5000;
 const timestamp = Date.now();
 const testUserData = {

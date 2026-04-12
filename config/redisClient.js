@@ -1,7 +1,7 @@
 const { createClient } = require('redis');
 const logger = require('../middleware/logger');
 
-let redisURL = process.env.REDIS_URL || 'redis://localhost:6379';
+let redisURL = process.env.REDIS_URL;
 
 if (redisURL.includes('upstash.io') && redisURL.startsWith('redis://')) {
   redisURL = redisURL.replace('redis://', 'rediss://');
