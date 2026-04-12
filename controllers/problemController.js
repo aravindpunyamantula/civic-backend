@@ -27,15 +27,31 @@ exports.createProblem = async (req, res, next) => {
 
 exports.getProblems = async (req, res, next) => {
   try {
-    const { tag } = req.query;
+    const { tag, userId, sort } = req.query;
     let filter = {};
+
     if (tag) {
-      filter.tags = tag;
+      filter.tags = tag.toLowerCase();
+    }
+    if (userId) {
+      if (userId === 'null' || userId === 'undefined') {
+        // Handle cases where client sends string 'null'
+        return res.status(200).json([]);
+      }
+      filter.createdBy = userId;
+    } else if (req.query.myUploads === 'true') {
+      // If client explicitly asked for my uploads but no userId provided
+      return res.status(200).json([]);
+    }
+
+    let sortOption = { createdAt: -1 };
+    if (sort === 'oldest') {
+      sortOption = { createdAt: 1 };
     }
 
     const problems = await Problem.find(filter)
       .populate('createdBy', 'username fullName profileImage')
-      .sort({ createdAt: -1 });
+      .sort(sortOption);
     res.status(200).json(problems);
   } catch (error) {
     next(error);
