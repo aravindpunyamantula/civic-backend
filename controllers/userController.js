@@ -14,8 +14,8 @@ exports.getUserProfile = async (req, res, next) => {
     }
 
     const userData = user.toObject();
-    userData.followersCount = userData.followers ? userData.followers.length : 0;
-    userData.followingCount = userData.following ? userData.following.length : 0;
+    userData.followersCount = await User.countDocuments({ _id: { $in: userData.followers || [] } });
+    userData.followingCount = await User.countDocuments({ _id: { $in: userData.following || [] } });
 
     const projectCount = await Project.countDocuments({ owner: user._id });
     userData.projectCount = projectCount;
@@ -67,8 +67,8 @@ exports.getUserById = async (req, res, next) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const userData = user.toObject();
-    userData.followersCount = userData.followers ? userData.followers.length : 0;
-    userData.followingCount = userData.following ? userData.following.length : 0;
+    userData.followersCount = await User.countDocuments({ _id: { $in: userData.followers || [] } });
+    userData.followingCount = await User.countDocuments({ _id: { $in: userData.following || [] } });
 
     const projectCount = await Project.countDocuments({ owner: user._id });
     userData.projectCount = projectCount;
@@ -82,9 +82,23 @@ exports.getUserById = async (req, res, next) => {
 // Get user followers
 exports.getFollowers = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).populate('followers', 'username fullName profileImage _id');
+    const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.status(200).json(user.followers);
+    
+    const rawCount = (user.followers || []).length;
+    await user.populate('followers', 'username fullName profileImage _id');
+    const validFollowers = user.followers.filter(f => f != null);
+    
+    if (validFollowers.length !== rawCount) {
+        // Update database to remove ghost IDs
+        await User.findByIdAndUpdate(req.params.id, { 
+            $set: { followers: validFollowers.map(f => f._id) } 
+        });
+        await clearCacheByPrefix('profile');
+        logger.info(`Sanitized followers list for user: ${req.params.id}. Removed ${rawCount - validFollowers.length} ghost IDs.`);
+    }
+
+    res.status(200).json(validFollowers);
   } catch (error) {
     next(error);
   }
@@ -93,9 +107,22 @@ exports.getFollowers = async (req, res, next) => {
 // Get user following
 exports.getFollowing = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).populate('following', 'username fullName profileImage _id');
+    const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.status(200).json(user.following);
+    
+    const rawCount = (user.following || []).length;
+    await user.populate('following', 'username fullName profileImage _id');
+    const validFollowing = user.following.filter(f => f != null);
+    
+    if (validFollowing.length !== rawCount) {
+        await User.findByIdAndUpdate(req.params.id, { 
+            $set: { following: validFollowing.map(f => f._id) } 
+        });
+        await clearCacheByPrefix('profile');
+        logger.info(`Sanitized following list for user: ${req.params.id}. Removed ${rawCount - validFollowing.length} ghost IDs.`);
+    }
+
+    res.status(200).json(validFollowing);
   } catch (error) {
     next(error);
   }

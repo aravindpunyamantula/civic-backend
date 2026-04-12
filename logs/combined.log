@@ -1738,3 +1738,13 @@
 {"level":"info","message":"Server running on port 5000","service":"civic-backend","timestamp":"2026-04-12 18:20:59"}
 {"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-12 18:20:59"}
 {"level":"info","message":"MongoDB connected successfully","service":"civic-backend","timestamp":"2026-04-12 18:20:59"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-12 18:42:26"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-12 18:42:50"}
+{"level":"info","message":"Cleared ${keys.length} cache keys with prefix: ${prefix}","service":"civic-backend","timestamp":"2026-04-12 18:42:51"}
+{"level":"info","message":"Sanitized followers list for user: 69db9a517eb4c1c740fde3f8. Removed 0 ghost IDs.","service":"civic-backend","timestamp":"2026-04-12 18:42:51"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-12 18:43:14"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-12 18:43:31"}
+{"level":"info","message":"Sanitized followers list for user: 69db9a7a7c4ef8839109518f. Removed 1 ghost IDs.","service":"civic-backend","timestamp":"2026-04-12 18:43:31"}
+{"level":"info","message":"Server running on port 5000","service":"civic-backend","timestamp":"2026-04-12 18:45:18"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-12 18:45:19"}
+{"level":"info","message":"MongoDB connected successfully","service":"civic-backend","timestamp":"2026-04-12 18:45:19"}
