@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+.env
+logs
+*.log
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+node_modules
+server_debug.log
+server_log.txt
+token.txt
