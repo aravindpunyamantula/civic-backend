@@ -27,7 +27,13 @@ exports.createProblem = async (req, res, next) => {
 
 exports.getProblems = async (req, res, next) => {
   try {
-    const problems = await Problem.find()
+    const { tag } = req.query;
+    let filter = {};
+    if (tag) {
+      filter.tags = tag;
+    }
+
+    const problems = await Problem.find(filter)
       .populate('createdBy', 'username fullName profileImage')
       .sort({ createdAt: -1 });
     res.status(200).json(problems);

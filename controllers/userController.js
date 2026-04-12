@@ -144,15 +144,14 @@ exports.unfollowUser = async (req, res, next) => {
     const isFollowing = currentUser.following.some(id => id.toString() === targetIdStr);
 
     if (isFollowing) {
-      currentUser.following.pull(targetUser._id);
-      targetUser.followers.pull(currentUser._id);
-      await currentUser.save();
-      await targetUser.save();
-      logger.info(`User \${req.user.id} unfollowed \${req.params.id}`);
+      await User.findByIdAndUpdate(req.user.id, { $pull: { following: targetUser._id } });
+      await User.findByIdAndUpdate(targetUser._id, { $pull: { followers: currentUser._id } });
+      
+      logger.info(`User ${req.user.id} unfollowed ${req.params.id}`);
       return res.status(200).json({ 
         message: 'User unfollowed successfully',
-        followersCount: targetUser.followers.length,
-        followingCount: currentUser.following.length
+        followersCount: targetUser.followers.length - 1, // Approximate or re-fetch for precise
+        followingCount: currentUser.following.length - 1
        });
     } else {
       return res.status(400).json({ message: 'Not following user' });

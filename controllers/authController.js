@@ -12,15 +12,24 @@ exports.signup = async (req, res, next) => {
     }
 
     // Email Domain Validation
-    const allowedDomains = ['acoe.edu.in', 'ac.edu.in', 'adityauniversity.in'];
+    const allowedDomains = ['acoe.edu.in', 'acet.ac.in', 'adityauniversity.in', 'aec.edu.in'];
     const emailParts = email.split('@');
     if (emailParts.length !== 2 || !allowedDomains.includes(emailParts[1])) {
-      return res.status(400).json({ message: 'Only institutional emails from Aditya University (acoe.edu.in, ac.edu.in, adityauniversity.in) are allowed' });
+      return res.status(400).json({ message: `Only institutional emails from Aditya University (${allowedDomains.join(', ')}) are allowed` });
     }
 
+    // Auto-map Campus based on Domain
+    let mappedCampus = "AUS"; // Default to AUS for adityauniversity.in and aec.edu.in
+    if (emailParts[1] === 'acoe.edu.in') mappedCampus = "ACOE";
+    else if (emailParts[1] === 'acet.ac.in') mappedCampus = "ACET";
+
+    // Auto-set username as rollNumber from email prefix
+    const rollNo = emailParts[0];
+    const finalUsername = rollNo;
+    const finalRollNumber = rollNo;
+
     // Roll Number Validation (Extract from email prefix if not provided, or validate if provided)
-    const extractedRollNo = emailParts[0];
-    if (extractedRollNo.length !== 10) {
+    if (rollNo.length !== 10) {
       return res.status(400).json({ message: 'Email prefix must be a 10-digit roll number' });
     }
 
@@ -30,29 +39,25 @@ exports.signup = async (req, res, next) => {
       return res.status(400).json({ message: 'Password must be at least 8 characters, and include uppercase, lowercase, number, and special character' });
     }
 
-    const validCampuses = ["AUS", "ACET"];
     const validBranches = ["CSE", "IT", "AIML", "AI-DS", "IOT", "ECE", "EEE", "MECH", "CIVIL", "PT-MINING", "CHEMICAL"];
 
-    if (!validCampuses.includes(campus)) {
-      return res.status(400).json({ message: 'Invalid campus selected' });
-    }
     if (!validBranches.includes(branch)) {
       return res.status(400).json({ message: 'Invalid branch selected' });
     }
 
     // Check if user already exists (by email or username)
-    const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+    const existingUser = await User.findOne({ $or: [{ username: finalUsername }, { email }] });
     if (existingUser) {
-      return res.status(400).json({ message: 'User with that username or email already exists' });
+      return res.status(400).json({ message: 'User with that roll number or email already exists' });
     }
 
     // Create new user (password is automatically hashed by the Mongoose pre-save hook)
     const newUser = new User({
-      username,
+      username: finalUsername,
       email,
       fullName,
-      rollNumber,
-      campus,
+      rollNumber: finalRollNumber,
+      campus: mappedCampus,
       branch,
       password,
     });
@@ -94,13 +99,13 @@ exports.login = async (req, res, next) => {
     // Find the user by username or email
     const user = await User.findOne({ $or: [{ username: username }, { email: username }] });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'User not found' });
     }
 
     // Validate password using the model's instance method
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'Incorrect password' });
     }
 
     // Generate JWT tokens using the model's instance methods

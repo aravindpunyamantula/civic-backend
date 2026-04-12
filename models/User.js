@@ -31,7 +31,7 @@ const UserSchema = new mongoose.Schema({
   campus: {
     type: String,
     required: true,
-    enum: ["AUS", "ACET"],
+    enum: ["AUS", "ACET", "ACOE"],
   },
   branch: {
     type: String,
@@ -63,10 +63,6 @@ const UserSchema = new mongoose.Schema({
     ref: 'User'
   }],
   savedProjects: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Project'
-  }],
-  likedProjects: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Project'
   }],
