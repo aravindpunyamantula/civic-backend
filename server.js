@@ -21,6 +21,7 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 const problemRoutes = require('./routes/problemRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const startKeepAlive = require('./utils/keepAlive');
 
 // Middleware
 const logger = require('./middleware/logger');
@@ -233,4 +234,8 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
+  
+  // Start keep-alive ping to prevent sleep on platforms like Render
+  const serverUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  startKeepAlive(serverUrl);
 });

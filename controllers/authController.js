@@ -40,10 +40,10 @@ exports.signup = async (req, res, next) => {
       return res.status(400).json({ message: 'Password must be at least 8 characters, and include uppercase, lowercase, number, and special character' });
     }
 
-    const validBranches = ["CSE", "IT", "AIML", "AI-DS", "IOT", "ECE", "EEE", "MECH", "CIVIL", "PT-MINING", "CHEMICAL"];
+    const validBranches = ["CSE", "IT", "AIML", "DS", "IOT", "ECE", "EEE", "MECH", "CIVIL", "CHEMICAL", "AGRICULTURE"];
 
     if (!validBranches.includes(branch)) {
-      return res.status(400).json({ message: 'Invalid branch selected' });
+      return res.status(400).json({ message: `Invalid branch selected. Allowed branches: ${validBranches.join(', ')}` });
     }
 
     // Check if user already exists (by email or username)

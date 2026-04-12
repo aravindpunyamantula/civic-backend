@@ -13,6 +13,10 @@ exports.getUserProfile = async (req, res, next) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    if (user.isBlocked) {
+      return res.status(403).json({ message: 'Your account has been blocked. Please contact the administrator.' });
+    }
+
     const userData = user.toObject();
     userData.followersCount = await User.countDocuments({ _id: { $in: userData.followers || [] } });
     userData.followingCount = await User.countDocuments({ _id: { $in: userData.following || [] } });
