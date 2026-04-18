@@ -7,7 +7,7 @@ exports.getTopProjects = async (req, res, next) => {
     const topProjects = await Project.aggregate([
       { $addFields: { likesCount: { $size: "$likes" } } },
       { $sort: { likesCount: -1, commentsCount: -1 } },
-      { $limit: 10 }
+      { $limit: 5 }
     ]);
     await Project.populate(topProjects, { path: 'owner', select: 'username fullName profileImage' });
     res.status(200).json(topProjects);

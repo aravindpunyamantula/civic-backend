@@ -99,6 +99,7 @@ exports.getReportedUsersCategorized = async (req, res, next) => {
   try {
     const users = await User.find({ reportCount: { $gt: 0 } }).sort({ reportCount: -1 });
     
+    const lowReportList = users.filter(u => u.reportCount >= 1 && u.reportCount < 2);
     const warningList = users.filter(u => u.reportCount >= 2 && u.reportCount < 5);
     const suspendList = users.filter(u => u.reportCount >= 5 && u.reportCount < 10);
     const banList = users.filter(u => u.reportCount >= 10);
@@ -106,6 +107,7 @@ exports.getReportedUsersCategorized = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: {
+        lowReportList,
         warningList,
         suspendList,
         banList,
