@@ -61,18 +61,36 @@ exports.getProblems = async (req, res, next) => {
 exports.getProblemById = async (req, res, next) => {
   try {
     const problem = await Problem.findById(req.params.id)
-      .populate('createdBy', 'username fullName profileImage')
-      .populate('comments.user', 'username fullName profileImage');
+      .populate('createdBy', 'username fullName profileImage followers');
     
     if (!problem) return res.status(404).json({ success: false, message: 'Problem not found' });
-    
-    const projects = await Project.find({ originProblemId: problem._id })
-      .populate('owner', 'username fullName profileImage')
-      .sort({ createdAt: -1 });
+
+    // Check if current user is following the creator
+    const isOwner = req.user && problem.createdBy._id.toString() === req.user.id;
+    const isFollower = req.user && problem.createdBy.followers.some(id => id.toString() === req.user.id);
+
+    let projects = [];
+    let comments = [];
+
+    if (isOwner || isFollower) {
+      projects = await Project.find({ originProblemId: problem._id })
+        .populate('owner', 'username fullName profileImage')
+        .sort({ createdAt: -1 });
+      
+      // Re-populate comments.user properly since we are returning them now
+      const populatedProblem = await Problem.findById(problem._id)
+        .populate('comments.user', 'username fullName profileImage');
+      comments = populatedProblem.comments;
+    }
+
+    const problemObj = problem.toObject();
+    delete problemObj.createdBy.followers; // Don't leak followers list
 
     res.status(200).json({
-      ...problem.toObject(),
-      projects
+      ...problemObj,
+      comments: (isOwner || isFollower) ? comments : [],
+      projects: (isOwner || isFollower) ? projects : [],
+      isDiscussionRestricted: !(isOwner || isFollower)
     });
   } catch (error) {
     next(error);
@@ -115,9 +133,16 @@ exports.addComment = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Comment text is required' });
     }
 
-    const problem = await Problem.findById(problemId);
+    const problem = await Problem.findById(problemId).populate('createdBy', 'followers');
     if (!problem) {
       return res.status(404).json({ success: false, message: 'Problem not found' });
+    }
+
+    const isOwner = problem.createdBy._id.toString() === req.user.id;
+    const isFollower = problem.createdBy.followers.some(id => id.toString() === req.user.id);
+
+    if (!isOwner && !isFollower) {
+      return res.status(403).json({ success: false, message: 'You must follow the owner to join the discussion' });
     }
 
     const comment = {

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const User = require('../models/User');
 
@@ -57,21 +58,43 @@ exports.getTechUsage = async (req, res, next) => {
 
 exports.getPersonalStats = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const projectCount = await Project.countDocuments({ owner: userId });
+    const userId = new mongoose.Types.ObjectId(req.user.id);
     
-    const projects = await Project.find({ owner: userId });
-    const totalLikes = projects.reduce((sum, p) => sum + (p.likes ? p.likes.length : 0), 0);
-    
-    // Get rank (simplified: based on project count)
-    const rank = await User.countDocuments({ 
-      // This is a simple rank logic, could be more complex
-    }) + 1;
+    // 1. Projects and Likes count using aggregation for performance
+    const stats = await Project.aggregate([
+      { $match: { owner: userId } },
+      {
+        $group: {
+          _id: "$owner",
+          projectCount: { $sum: 1 },
+          totalLikes: { $sum: { $size: "$likes" } }
+        }
+      }
+    ]);
+
+    const userStats = stats.length > 0 ? stats[0] : { projectCount: 0, totalLikes: 0 };
+
+    // 2. Simple Ranking Logic (e.g., Top % based on total likes across all users)
+    const totalUsers = await User.countDocuments();
+    const usersWithMoreLikes = await Project.aggregate([
+      { $group: { _id: "$owner", total: { $sum: { $size: "$likes" } } } },
+      { $match: { total: { $gt: userStats.totalLikes } } },
+      { $count: "count" }
+    ]);
+
+    const higherRankCount = usersWithMoreLikes.length > 0 ? usersWithMoreLikes[0].count : 0;
+    const percentile = totalUsers > 0 ? (higherRankCount / totalUsers) * 100 : 100;
+
+    let rankLabel = 'Top 100%';
+    if (percentile <= 5) rankLabel = 'Top 5%';
+    else if (percentile <= 10) rankLabel = 'Top 10%';
+    else if (percentile <= 25) rankLabel = 'Top 25%';
+    else if (percentile <= 50) rankLabel = 'Top 50%';
 
     res.status(200).json({
-      projectCount,
-      totalLikes,
-      rank: 'Top 10%' // Mocked rank for now
+      projectCount: userStats.projectCount,
+      totalLikes: userStats.totalLikes,
+      rank: userStats.projectCount > 0 ? rankLabel : 'Newbie'
     });
   } catch (error) {
     next(error);

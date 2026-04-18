@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Comment = require('../models/Comment');
+const Notification = require('../models/Notification');
 const { calculateMatchScore } = require('../utils/matchingEngine');
 const { clearCacheByPrefix, clearMultiplePrefixes } = require('../utils/cacheUtils');
 const { deleteAsset } = require('../utils/cloudinary');
@@ -22,6 +23,7 @@ exports.getUserProfile = async (req, res, next) => {
     const userData = user.toObject();
     userData.followersCount = await User.countDocuments({ _id: { $in: userData.followers || [] } });
     userData.followingCount = await User.countDocuments({ _id: { $in: userData.following || [] } });
+    userData.followRequestsCount = (userData.followRequests || []).length;
 
     const projectCount = await Project.countDocuments({ owner: user._id });
     userData.projectCount = projectCount;
@@ -171,22 +173,45 @@ exports.followUser = async (req, res, next) => {
     
     const targetIdStr = targetUser._id.toString();
     const isFollowing = currentUser.following.some(id => id.toString() === targetIdStr);
+    const hasRequested = targetUser.followRequests.some(id => id.toString() === currentUser._id.toString());
 
-    if (!isFollowing) {
-      currentUser.following.push(targetUser._id);
-      targetUser.followers.push(currentUser._id);
-      await currentUser.save();
+    if (!isFollowing && !hasRequested) {
+      targetUser.followRequests.push(currentUser._id);
       await targetUser.save();
+
+      // Create Notification
+      const notification = new Notification({
+        recipient: targetUser._id,
+        sender: currentUser._id,
+        type: 'FOLLOW_REQ',
+        relatedId: currentUser._id, // Sender's ID as relatedId for follow req
+        title: 'New Follow Request',
+        message: `${currentUser.fullName} requested to follow you.`
+      });
+      await notification.save();
+
+      // Emit real-time notification
+      const io = req.app.get('io');
+      if (io) {
+        io.to(targetUser._id.toString()).emit('new_notification', {
+          ...notification.toObject(),
+          sender: {
+            username: currentUser.username,
+            fullName: currentUser.fullName,
+            profileImage: currentUser.profileImage
+          }
+        });
+      }
       
-      // Invalidate relevant caches (Optimized batch clear)
       await clearMultiplePrefixes(['profile', 'user_search']);
       
-      logger.info(`User ${req.user.id} followed ${req.params.id}`);
+      logger.info(`User ${req.user.id} requested to follow ${req.params.id}`);
       return res.status(200).json({ 
-        message: 'User followed successfully',
-        followersCount: targetUser.followers.length,
-        followingCount: currentUser.following.length
+        message: 'Follow request sent',
+        followStatus: 'REQUESTED'
       });
+    } else if (hasRequested) {
+      return res.status(400).json({ message: 'Follow request already sent' });
     } else {
       return res.status(400).json({ message: 'Already following user' });
     }
@@ -210,17 +235,143 @@ exports.unfollowUser = async (req, res, next) => {
       await User.findByIdAndUpdate(req.user.id, { $pull: { following: targetUser._id } });
       await User.findByIdAndUpdate(targetUser._id, { $pull: { followers: currentUser._id } });
       
+      // If there's a follow request notification, remove it (sender is target, recipient is current, but actually follow goes both ways? No, sender requested to follow)
+      // Actually, if I unfollow someone, I was the one following. 
+      
       await clearMultiplePrefixes(['profile', 'user_search']);
       
       logger.info(`User ${req.user.id} unfollowed ${req.params.id}`);
       return res.status(200).json({ 
         message: 'User unfollowed successfully',
-        followersCount: targetUser.followers.length - 1, // Approximate or re-fetch for precise
+        followersCount: targetUser.followers.length - 1, 
         followingCount: currentUser.following.length - 1
        });
     } else {
+      // Check if there's a pending request to cancel
+      const hasRequested = targetUser.followRequests.some(id => id.toString() === currentUser._id.toString());
+      if (hasRequested) {
+        targetUser.followRequests.pull(currentUser._id);
+        await targetUser.save();
+        
+        // Delete the notification
+        await Notification.findOneAndDelete({
+          recipient: targetUser._id,
+          sender: currentUser._id,
+          type: 'FOLLOW_REQ'
+        });
+
+        return res.status(200).json({ message: 'Follow request cancelled' });
+      }
       return res.status(400).json({ message: 'Not following user' });
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Accept Follow Request
+exports.acceptFollowRequest = async (req, res, next) => {
+  try {
+    const { requesterId } = req.body;
+    const currentUser = await User.findById(req.user.id);
+    const requesterUser = await User.findById(requesterId);
+
+    if (!requesterUser) return res.status(404).json({ message: 'Requester not found' });
+
+    if (!currentUser.followRequests.includes(requesterId)) {
+      return res.status(400).json({ message: 'No follow request from this user' });
+    }
+
+    // Move from followRequests to followers
+    currentUser.followRequests.pull(requesterId);
+    if (!currentUser.followers.includes(requesterId)) {
+      currentUser.followers.push(requesterId);
+    }
+    
+    // Add to requester's following
+    if (!requesterUser.following.includes(currentUser._id)) {
+      requesterUser.following.push(currentUser._id);
+    }
+
+    await currentUser.save();
+    await requesterUser.save();
+
+    // Delete the original FOLLOW_REQ notification
+    await Notification.findOneAndDelete({
+      recipient: currentUser._id,
+      sender: requesterId,
+      type: 'FOLLOW_REQ'
+    });
+
+    // Create FOLLOW_ACCEPT notification
+    const notification = new Notification({
+      recipient: requesterId,
+      sender: currentUser._id,
+      type: 'FOLLOW_ACCEPT',
+      relatedId: currentUser._id,
+      title: 'Follow Request Accepted',
+      message: `${currentUser.fullName} accepted your follow request.`
+    });
+    await notification.save();
+
+    // Emit real-time notification
+    const io = req.app.get('io');
+    if (io) {
+      io.to(requesterId.toString()).emit('new_notification', {
+        ...notification.toObject(),
+        sender: {
+          username: currentUser.username,
+          fullName: currentUser.fullName,
+          profileImage: currentUser.profileImage
+        }
+      });
+    }
+
+    await clearMultiplePrefixes(['profile', 'user_search']);
+
+    res.status(200).json({ message: 'Follow request accepted' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Reject Follow Request
+exports.rejectFollowRequest = async (req, res, next) => {
+  try {
+    const { requesterId } = req.body;
+    const currentUser = await User.findById(req.user.id);
+
+    if (!currentUser.followRequests.includes(requesterId)) {
+      return res.status(400).json({ message: 'No follow request from this user' });
+    }
+
+    currentUser.followRequests.pull(requesterId);
+    await currentUser.save();
+
+    // Delete the original FOLLOW_REQ notification
+    await Notification.findOneAndDelete({
+      recipient: currentUser._id,
+      sender: requesterId,
+      type: 'FOLLOW_REQ'
+    });
+
+    await clearMultiplePrefixes(['profile', 'user_search']);
+
+    res.status(200).json({ message: 'Follow request rejected' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get Follow Requests
+exports.getFollowRequests = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .populate('followRequests', 'username fullName profileImage _id');
+    
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    res.status(200).json(user.followRequests);
   } catch (error) {
     next(error);
   }

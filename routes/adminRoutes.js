@@ -13,4 +13,11 @@ router.put('/users/:id', adminController.updateUser);
 router.put('/users/:id/block', adminController.toggleBlockUser);
 router.delete('/users/:id', adminController.deleteUser);
 
+// Moderation & Reports
+router.get('/reports/categorized', adminController.getReportedUsersCategorized);
+router.get('/users/:id/content', adminController.getUserContent);
+router.post('/users/:id/warn', adminController.warnUser);
+router.post('/users/:id/suspend', adminController.suspendUser);
+router.post('/users/:id/ban', adminController.banUser);
+
 module.exports = router;

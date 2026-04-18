@@ -13,7 +13,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['COLLAB_REQ', 'COLLAB_ACCEPT', 'COLLAB_REJECT', 'NEW_MSG'],
+    enum: ['COLLAB_REQ', 'COLLAB_ACCEPT', 'COLLAB_REJECT', 'NEW_MSG', 'FOLLOW_REQ', 'FOLLOW_ACCEPT', 'FOLLOW_REJECT'],
     required: true
   },
   relatedId: {

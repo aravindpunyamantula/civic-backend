@@ -70,6 +70,10 @@ const UserSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  followRequests: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   savedProjects: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Project'
@@ -89,6 +93,23 @@ const UserSchema = new mongoose.Schema({
     default: false,
   },
   isBlocked: {
+    type: Boolean,
+    default: false,
+  },
+  reportCount: {
+    type: Number,
+    default: 0,
+  },
+  suspensionExpiresAt: {
+    type: Date,
+  },
+  warningExpiresAt: {
+    type: Date,
+  },
+  warningMessage: {
+    type: String,
+  },
+  isPermanentlyBanned: {
     type: Boolean,
     default: false,
   },

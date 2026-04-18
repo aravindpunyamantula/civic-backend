@@ -97,12 +97,24 @@ exports.getFeed = async (req, res, next) => {
       filter.owner = { $ne: req.user.id };
     }
 
+    // Get following list for prioritization
+    let followingIds = [];
+    if (req.user && req.user.id) {
+      const user = await User.findById(req.user.id);
+      if (user) {
+        followingIds = user.following || [];
+      }
+    }
+
     let projects;
     if (type === 'trending') {
       const pipeline = [
         { $match: filter },
-        { $addFields: { likesCount: { $size: "$likes" } } },
-        { $sort: { likesCount: -1 } },
+        { $addFields: { 
+            likesCount: { $size: "$likes" },
+            isFollowed: { $in: ["$owner", followingIds] }
+        } },
+        { $sort: { isFollowed: -1, likesCount: -1, createdAt: -1 } },
         { $skip: skip },
         { $limit: parseInt(limit) }
       ];
@@ -118,12 +130,23 @@ exports.getFeed = async (req, res, next) => {
         { path: 'originProblemId', select: 'title' }
       ]);
     } else {
-      projects = await Project.find(filter)
-        .populate('owner', 'username fullName profileImage')
-        .populate('originProblemId', 'title')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit));
+      // For "latest" or default, use aggregation to support the custom sort
+      const pipeline = [
+        { $match: filter },
+        { $addFields: { 
+            isFollowed: { $in: ["$owner", followingIds] }
+        } },
+        { $sort: { isFollowed: -1, createdAt: -1 } },
+        { $skip: skip },
+        { $limit: parseInt(limit) }
+      ];
+      
+      projects = await Project.aggregate(pipeline);
+      
+      await Project.populate(projects, [
+        { path: 'owner', select: 'username fullName profileImage' },
+        { path: 'originProblemId', select: 'title' }
+      ]);
     }
 
     res.status(200).json(projects);

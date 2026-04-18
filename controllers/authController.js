@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const BannedIdentifier = require('../models/BannedIdentifier');
 const { clearMultiplePrefixes } = require('../utils/cacheUtils');
 const logger = require('../middleware/logger');
 
@@ -40,10 +41,24 @@ exports.signup = async (req, res, next) => {
       return res.status(400).json({ message: 'Password must be at least 8 characters, and include uppercase, lowercase, number, and special character' });
     }
 
-    const validBranches = ["CSE", "IT", "AIML", "DS", "IOT", "ECE", "EEE", "MECH", "CIVIL", "CHEMICAL", "AGRICULTURE"];
+    const validBranches = ["CSE", "IT", "AIML", "AI-DS", "IOT", "ECE", "EEE", "MECH", "CIVIL", "CHEMICAL", "AGRICULTURE", "PT-MINING"];
 
     if (!validBranches.includes(branch)) {
       return res.status(400).json({ message: `Invalid branch selected. Allowed branches: ${validBranches.join(', ')}` });
+    }
+
+    // Check for banned identifiers
+    const banned = await BannedIdentifier.findOne({
+      $or: [
+        { value: email },
+        { value: finalRollNumber },
+        { value: phoneNumber },
+        { value: personalEmail }
+      ].filter(item => item.value)
+    });
+
+    if (banned) {
+      return res.status(403).json({ message: 'This account or its identifiers are permanently banned from the platform.' });
     }
 
     // Check if user already exists (by email or username)
@@ -101,8 +116,14 @@ exports.login = async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid input types' });
     }
 
-    // Find the user by username or email
-    const user = await User.findOne({ $or: [{ username: username }, { email: username }] });
+    // Find the user by username, email, or rollNumber
+    const user = await User.findOne({ 
+      $or: [
+        { username: username }, 
+        { email: username }, 
+        { rollNumber: username }
+      ] 
+    });
     if (!user) {
       return res.status(400).json({ message: 'User not found' });
     }
@@ -110,6 +131,18 @@ exports.login = async (req, res, next) => {
     // Check if user is blocked
     if (user.isBlocked) {
       return res.status(403).json({ message: 'Your account has been blocked. Please contact the administrator.' });
+    }
+
+    if (user.isPermanentlyBanned) {
+      return res.status(403).json({ message: 'Your account has been permanently banned.' });
+    }
+
+    if (user.suspensionExpiresAt && user.suspensionExpiresAt > new Date()) {
+      const remainingDays = Math.ceil((user.suspensionExpiresAt - new Date()) / (1000 * 60 * 60 * 24));
+      return res.status(403).json({ 
+        message: `Your account is suspended for ${remainingDays} more days contact to higher authorities.`,
+        suspensionExpiresAt: user.suspensionExpiresAt
+      });
     }
 
     // Validate password using the model's instance method
@@ -134,7 +167,9 @@ exports.login = async (req, res, next) => {
         rollNumber: user.rollNumber,
         campus: user.campus,
         branch: user.branch,
-        isAdmin: user.isAdmin
+        isAdmin: user.isAdmin,
+        warningExpiresAt: user.warningExpiresAt,
+        warningMessage: user.warningMessage
       },
     });
   } catch (err) {
