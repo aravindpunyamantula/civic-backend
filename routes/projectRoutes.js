@@ -26,6 +26,7 @@ router.get('/:id', cacheMiddleware('project_detail', 600), projectController.get
 // Like and Save
 router.post('/:id/like', authMiddleware, projectController.likeProject);
 router.post('/:id/save', authMiddleware, projectController.saveProject);
+router.post('/:id/view', authMiddleware, projectController.recordView);
 
 // Create Project
 router.post('/', authMiddleware, projectController.createProject);
@@ -42,6 +43,7 @@ router.get('/:id/requests', authMiddleware, projectController.getCollabRequests)
 router.post('/:id/accept-request', authMiddleware, projectController.acceptCollabRequest);
 router.post('/:id/reject-request', authMiddleware, projectController.rejectCollabRequest);
 router.get('/:id/messages', authMiddleware, projectController.getChatHistory);
+router.post('/:id/collaborators', authMiddleware, projectController.addCollaborator);
 router.delete('/:id/collaborators/:userId', authMiddleware, projectController.removeCollaborator);
 
 module.exports = router;

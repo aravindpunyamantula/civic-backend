@@ -5,11 +5,12 @@ const Notification = require('../models/Notification');
 const { normalizeSkills } = require('../utils/skillUtils');
 const { calculateMatchScore } = require('../utils/matchingEngine');
 const { clearCacheByPrefix, clearMultiplePrefixes } = require('../utils/cacheUtils');
+const { deleteAsset } = require('../utils/cloudinary');
 const logger = require('../middleware/logger');
 
 exports.createProject = async (req, res, next) => {
   try {
-    const { title, description, technologies, status, isCollaborationOpen, media, githubLink, teamMembers, collaborationRoles } = req.body;
+    const { title, description, technologies, status, isCollaborationOpen, media, githubLink, links, teamMembers, collaborationRoles } = req.body;
 
     // Strict Validation
     if (!title || title.trim() === '') {
@@ -38,6 +39,7 @@ exports.createProject = async (req, res, next) => {
       isCollaborationOpen: isCollaborationOpen === true || isCollaborationOpen === 'true',
       media,
       githubLink,
+      links: links || [],
       owner: req.user.id,
       teamMembers
     });
@@ -389,7 +391,7 @@ exports.updateProject = async (req, res, next) => {
       return res.status(403).json({ message: 'Unauthorized: Only the owner can update this project' });
     }
 
-    const { title, description, technologies, status, isCollaborationOpen, media, githubLink, teamMembers, collaborationRoles } = req.body;
+    const { title, description, technologies, status, isCollaborationOpen, media, githubLink, links, teamMembers, collaborationRoles } = req.body;
 
     if (title) project.title = title;
     if (description) project.description = description;
@@ -412,6 +414,10 @@ exports.updateProject = async (req, res, next) => {
 
     if (collaborationRoles && Array.isArray(collaborationRoles)) {
       project.collaborationRoles = normalizeSkills(collaborationRoles);
+    }
+
+    if (links && Array.isArray(links)) {
+      project.links = links;
     }
 
     // Update collaborators if team members changed
@@ -452,6 +458,16 @@ exports.deleteProject = async (req, res, next) => {
       { $or: [{ savedProjects: project._id }, { likedProjects: project._id }] },
       { $pull: { savedProjects: project._id, likedProjects: project._id } }
     );
+
+    // Delete Cloudinary assets
+    if (project.media && project.media.length > 0) {
+      for (const m of project.media) {
+        if (m.url) {
+          const type = m.type === 'video' ? 'video' : 'image';
+          deleteAsset(m.url, type).catch(err => logger.error(`Project media deletion failed: ${m.url}`, err));
+        }
+      }
+    }
 
     // Delete the project
     await Project.findByIdAndDelete(req.params.id);
@@ -595,6 +611,7 @@ exports.removeCollaborator = async (req, res) => {
     }
 
     project.collaborators = project.collaborators.filter(c => c.toString() !== userId);
+    project.teamMembers = project.teamMembers.filter(m => !(m.user && m.user.toString() === userId));
 
     // Also update collabRequests if needed
     await project.save();
@@ -602,6 +619,56 @@ exports.removeCollaborator = async (req, res) => {
     res.status(200).json({ message: 'Collaborator removed successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error removing collaborator', error: error.message });
+  }
+};
+
+exports.addCollaborator = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { query } = req.body; // username or email
+
+    const project = await Project.findById(id);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    if (project.owner.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized: Only the owner can manage members' });
+    }
+
+    const userToAdd = await User.findOne({
+      $or: [
+        { username: { $regex: new RegExp(`^${query}$`, 'i') } },
+        { email: { $regex: new RegExp(`^${query}$`, 'i') } }
+      ]
+    });
+
+    if (!userToAdd) return res.status(404).json({ message: 'User not found' });
+
+    if (project.collaborators.includes(userToAdd._id)) {
+      return res.status(400).json({ message: 'User is already a collaborator' });
+    }
+
+    project.collaborators.push(userToAdd._id);
+    
+    // Add to teamMembers crew if not present
+    const isInTeam = project.teamMembers.some(m => m.user && m.user.toString() === userToAdd._id.toString());
+    if (!isInTeam) {
+      project.teamMembers.push({
+        user: userToAdd._id,
+        name: userToAdd.fullName,
+        role: 'Collaborator'
+      });
+    }
+
+    await project.save();
+    
+    // Return populated project to update frontend state
+    const populated = await Project.findById(id)
+      .populate('owner', 'username fullName profileImage')
+      .populate('collaborators', 'username fullName profileImage');
+
+    res.status(200).json({ message: 'Member added successfully', project: populated });
+  } catch (error) {
+    res.status(500).json({ message: 'Error adding member', error: error.message });
   }
 };
 
@@ -617,6 +684,24 @@ exports.getSavedProjects = async (req, res, next) => {
       .sort({ createdAt: -1 });
 
     res.status(200).json(projects);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.recordView = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    // Unique view: only add if user hasn't viewed before
+    if (!project.views.includes(userId)) {
+      project.views.push(userId);
+      await project.save();
+    }
+
+    res.status(200).json({ views: project.views.length });
   } catch (error) {
     next(error);
   }

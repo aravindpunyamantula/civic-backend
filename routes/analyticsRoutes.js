@@ -8,4 +8,7 @@ router.get('/top-projects', cacheMiddleware('analytics:top', 600), analyticsCont
 router.get('/branch-stats', cacheMiddleware('analytics:branches', 600), analyticsController.getBranchStats);
 router.get('/tech-usage', cacheMiddleware('analytics:tech', 600), analyticsController.getTechUsage);
 
+const auth = require('../middleware/authMiddleware');
+router.get('/personal', auth, analyticsController.getPersonalStats);
+
 module.exports = router;

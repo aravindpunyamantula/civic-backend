@@ -5,7 +5,7 @@ const logger = require('../middleware/logger');
 // Signup logic
 exports.signup = async (req, res, next) => {
   try {
-    const { username, password, email, fullName, campus, branch, rollNumber } = req.body;
+    const { username, password, email, fullName, campus, branch, rollNumber, phoneNumber, personalEmail } = req.body;
 
     // Basic type validation to prevent NoSQL injection
     if (typeof username !== 'string' || typeof password !== 'string' || typeof email !== 'string') {
@@ -61,6 +61,8 @@ exports.signup = async (req, res, next) => {
       campus: mappedCampus,
       branch,
       password,
+      phoneNumber: phoneNumber || '',
+      personalEmail: personalEmail || '',
     });
 
     await newUser.save();

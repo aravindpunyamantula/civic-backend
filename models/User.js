@@ -42,6 +42,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  phoneNumber: {
+    type: String,
+    default: '',
+  },
+  personalEmail: {
+    type: String,
+    default: '',
+  },
   profileImage: {
     type: String,
     default: '',

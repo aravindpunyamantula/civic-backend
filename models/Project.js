@@ -22,9 +22,14 @@ const ProjectSchema = new mongoose.Schema({
     type: { type: String, enum: ['image', 'video'], default: 'image' }
   }],
   githubLink: { type: String, default: '' },
+  links: [{
+    name: { type: String, required: true },
+    url: { type: String, required: true }
+  }],
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   teamMembers: { type: [TeamMemberSchema], default: [] },
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // user IDs
+  views: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // unique user views
   saves: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // user IDs
   collaborators: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   collabRequests: [{

@@ -3,6 +3,7 @@ const Project = require('../models/Project');
 const Comment = require('../models/Comment');
 const { calculateMatchScore } = require('../utils/matchingEngine');
 const { clearCacheByPrefix, clearMultiplePrefixes } = require('../utils/cacheUtils');
+const { deleteAsset } = require('../utils/cloudinary');
 const logger = require('../middleware/logger');
 
 // Fetch user profile
@@ -33,7 +34,7 @@ exports.getUserProfile = async (req, res, next) => {
 // Update user profile
 exports.updateUserProfile = async (req, res, next) => {
   try {
-    const { fullName, bio, skills, profileImage, portfolio, github, leetcode, codechef, gfg, linkedin } = req.body;
+    const { fullName, bio, skills, profileImage, portfolio, github, leetcode, codechef, gfg, linkedin, phoneNumber, personalEmail } = req.body;
     
     logger.info(`Profile update request received for user: ${req.user.id}`);
 
@@ -47,13 +48,21 @@ exports.updateUserProfile = async (req, res, next) => {
     if (fullName !== undefined) user.fullName = fullName;
     if (bio !== undefined) user.bio = bio;
     if (skills !== undefined) user.skills = skills;
-    if (profileImage !== undefined) user.profileImage = profileImage;
+    if (profileImage !== undefined && profileImage !== user.profileImage) {
+      // Delete old image if it exists
+      if (user.profileImage) {
+        deleteAsset(user.profileImage).catch(err => logger.error('Old profile image deletion failed:', err));
+      }
+      user.profileImage = profileImage;
+    }
     if (portfolio !== undefined) user.portfolio = portfolio;
     if (github !== undefined) user.github = github;
     if (leetcode !== undefined) user.leetcode = leetcode;
     if (codechef !== undefined) user.codechef = codechef;
     if (gfg !== undefined) user.gfg = gfg;
     if (linkedin !== undefined) user.linkedin = linkedin;
+    if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
+    if (personalEmail !== undefined) user.personalEmail = personalEmail;
 
     logger.info(`Saving profile for user: ${user.username}`);
     const updatedUser = await user.save();
