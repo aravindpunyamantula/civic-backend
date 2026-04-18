@@ -120,25 +120,25 @@ exports.getFeed = async (req, res, next) => {
       { $match: filter },
       { $addFields: {
         likesCount: { $size: '$likes' },
-        isAdmin: { $in: ['$owner', adminObjectIds] },
-        isFollowed: { $in: ['$owner', followingObjectIds] },
+        isAdmin: { $cond: [{ $in: ['$owner', adminObjectIds] }, true, false] },
+        isFollowed: { $cond: [{ $in: ['$owner', followingObjectIds] }, true, false] },
         isInterest: userSkills.length > 0
           ? { $gt: [{ $size: { $ifNull: [{ $setIntersection: ['$technologies', userSkills] }, []] } }, 0] }
-          : false,
+          : { $literal: false },
       }},
       { $addFields: {
         feedPriority: {
           $switch: {
             branches: [
-              { case: '$isAdmin', then: 3 },
-              { case: '$isFollowed', then: 2 },
-              { case: '$isInterest', then: 1 },
+              { case: { $eq: ['$isAdmin', true] }, then: 3 },
+              { case: { $eq: ['$isFollowed', true] }, then: 2 },
+              { case: { $eq: ['$isInterest', true] }, then: 1 },
             ],
             default: 0
           }
         }
       }},
-      { $sort: { feedPriority: -1, likesCount: likesSort === -1 ? -1 : 0, createdAt: -1 } },
+      { $sort: { feedPriority: -1, likesCount: type === 'trending' ? -1 : 1, createdAt: -1 } },
       { $skip: skip },
       { $limit: parseInt(limit) }
     ];
