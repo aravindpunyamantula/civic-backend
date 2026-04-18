@@ -70,84 +70,85 @@ exports.createProject = async (req, res, next) => {
 
 exports.getFeed = async (req, res, next) => {
   try {
-    const { type, status, collaborationOpen, ownerId, skills, page = 1, limit = 20 } = req.query; // 'latest' or 'trending', plus filters
+    const { type, status, collaborationOpen, ownerId, skills, page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     let filter = {};
-    if (status) {
-      filter.status = status.toUpperCase();
-    }
-
-    if (ownerId) {
-      filter.owner = ownerId;
-    }
+    if (status) filter.status = status.toUpperCase();
+    if (ownerId) filter.owner = ownerId;
 
     if (skills) {
       const skillsArray = normalizeSkills(skills.split(','));
-      if (skillsArray.length > 0) {
-        filter.technologies = { $in: skillsArray };
-      }
+      if (skillsArray.length > 0) filter.technologies = { $in: skillsArray };
     }
     if (collaborationOpen !== undefined) {
       filter.isCollaborationOpen = collaborationOpen === 'true' || collaborationOpen === true;
     }
 
-    // Exclude own projects from feed if logged in and not looking at a specific user's projects
+    // Exclude own projects from general feed
     if (req.user && req.user.id && !ownerId) {
       filter.owner = { $ne: req.user.id };
     }
 
-    // Get following list for prioritization
+    // Get user context: following list and skills/interests
     let followingIds = [];
+    let userSkills = [];
+    let adminIds = [];
+
     if (req.user && req.user.id) {
-      const user = await User.findById(req.user.id);
+      const user = await User.findById(req.user.id).select('following skills');
+      const admins = await User.find({ isAdmin: true }).select('_id');
       if (user) {
-        followingIds = user.following || [];
+        followingIds = (user.following || []).map(id => id.toString());
+        userSkills = normalizeSkills(user.skills || []);
       }
+      adminIds = admins.map(a => a._id.toString());
     }
 
-    let projects;
-    if (type === 'trending') {
-      const pipeline = [
-        { $match: filter },
-        { $addFields: { 
-            likesCount: { $size: "$likes" },
-            isFollowed: { $in: ["$owner", followingIds] }
-        } },
-        { $sort: { isFollowed: -1, likesCount: -1, createdAt: -1 } },
-        { $skip: skip },
-        { $limit: parseInt(limit) }
-      ];
-      projects = await Project.aggregate(pipeline);
-      // Manually remove comments from aggregate results (legacy cleanup)
-      projects = projects.map(p => {
-        const { comments, ...rest } = p;
-        return rest;
-      });
+    // Build aggregation with three priority tiers:
+    //   3 = admin post, 2 = following post, 1 = interest match, 0 = everything else
+    const followingObjectIds = followingIds.map(id => {
+      try { return new (require('mongoose').Types.ObjectId)(id); } catch(e) { return null; }
+    }).filter(Boolean);
+    const adminObjectIds = adminIds.map(id => {
+      try { return new (require('mongoose').Types.ObjectId)(id); } catch(e) { return null; }
+    }).filter(Boolean);
 
-      await Project.populate(projects, [
-        { path: 'owner', select: 'username fullName profileImage' },
-        { path: 'originProblemId', select: 'title' }
-      ]);
-    } else {
-      // For "latest" or default, use aggregation to support the custom sort
-      const pipeline = [
-        { $match: filter },
-        { $addFields: { 
-            isFollowed: { $in: ["$owner", followingIds] }
-        } },
-        { $sort: { isFollowed: -1, createdAt: -1 } },
-        { $skip: skip },
-        { $limit: parseInt(limit) }
-      ];
-      
-      projects = await Project.aggregate(pipeline);
-      
-      await Project.populate(projects, [
-        { path: 'owner', select: 'username fullName profileImage' },
-        { path: 'originProblemId', select: 'title' }
-      ]);
-    }
+    const likesSort = type === 'trending' ? -1 : 1;
+
+    const pipeline = [
+      { $match: filter },
+      { $addFields: {
+        likesCount: { $size: '$likes' },
+        isAdmin: { $in: ['$owner', adminObjectIds] },
+        isFollowed: { $in: ['$owner', followingObjectIds] },
+        isInterest: userSkills.length > 0
+          ? { $gt: [{ $size: { $ifNull: [{ $setIntersection: ['$technologies', userSkills] }, []] } }, 0] }
+          : false,
+      }},
+      { $addFields: {
+        feedPriority: {
+          $switch: {
+            branches: [
+              { case: '$isAdmin', then: 3 },
+              { case: '$isFollowed', then: 2 },
+              { case: '$isInterest', then: 1 },
+            ],
+            default: 0
+          }
+        }
+      }},
+      { $sort: { feedPriority: -1, likesCount: likesSort === -1 ? -1 : 0, createdAt: -1 } },
+      { $skip: skip },
+      { $limit: parseInt(limit) }
+    ];
+
+    let projects = await Project.aggregate(pipeline);
+
+    await Project.populate(projects, [
+      { path: 'owner', select: 'username fullName profileImage isAdmin' },
+      { path: 'originProblemId', select: 'title' }
+    ]);
 
     res.status(200).json(projects);
   } catch (error) {

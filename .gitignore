@@ -2,5 +2,6 @@
 token.txt
 node_modules/
 *.log
+logs/
 dist/
 .DS_Store
