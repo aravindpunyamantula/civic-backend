@@ -2001,3 +2001,36 @@
 {"level":"error","message":"Uncaught Exception: listen EADDRINUSE: address already in use :::5000","service":"civic-backend","stack":"Error: listen EADDRINUSE: address already in use :::5000\n    at Server.setupListenHandle [as _listen2] (node:net:1940:16)\n    at listenInCluster (node:net:1997:12)\n    at Server.listen (node:net:2102:7)\n    at Object.<anonymous> (/home/aravind/Documents/freelancing/civic/backend/server.js:235:8)\n    at Module._compile (node:internal/modules/cjs/loader:1761:14)\n    at Object..js (node:internal/modules/cjs/loader:1893:10)\n    at Module.load (node:internal/modules/cjs/loader:1481:32)\n    at Module._load (node:internal/modules/cjs/loader:1300:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:328:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)","timestamp":"2026-04-18 16:08:05"}
 {"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:08:05"}
 {"level":"info","message":"MongoDB connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:08:07"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:39:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:09:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:40:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:10:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:41:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:11:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:42:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:12:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:43:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:13:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:44:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:14:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:45:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:15:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:46:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:16:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:47:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:17:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:48:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:18:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:49:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:19:01"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:50:01 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:20:01"}
+{"level":"info","message":"Server running on port 5000","service":"civic-backend","timestamp":"2026-04-18 16:20:10"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:20:10"}
+{"level":"info","message":"MongoDB connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:20:11"}
+{"level":"info","message":"Server running on port 5000","service":"civic-backend","timestamp":"2026-04-18 16:20:13"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:20:13"}
+{"level":"info","message":"MongoDB connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:20:14"}
+{"level":"info","message":"Server running on port 5000","service":"civic-backend","timestamp":"2026-04-18 16:20:15"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:20:15"}
+{"level":"info","message":"MongoDB connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:20:15"}
+{"level":"info","message":"Server running on port 5000","service":"civic-backend","timestamp":"2026-04-18 16:20:56"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:20:57"}
+{"level":"info","message":"Server running on port 5000","service":"civic-backend","timestamp":"2026-04-18 16:20:58"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:20:58"}
+{"level":"info","message":"MongoDB connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:21:03"}
+{"level":"info","message":"Server running on port 5000","service":"civic-backend","timestamp":"2026-04-18 16:21:15"}
+{"level":"info","message":"Redis connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:21:15"}
+{"level":"info","message":"MongoDB connected successfully","service":"civic-backend","timestamp":"2026-04-18 16:21:21"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:52:15 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:22:15"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:53:15 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:23:15"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:54:15 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:24:15"}
+{"level":"info","message":"::1 - - [18/Apr/2026:10:55:15 +0000] \"GET / HTTP/1.1\" 200 20 \"-\" \"-\"","service":"civic-backend","timestamp":"2026-04-18 16:25:15"}

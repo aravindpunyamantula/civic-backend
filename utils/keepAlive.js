@@ -1,4 +1,5 @@
 const http = require('http');
+const https = require('https');
 
 /**
  * Pings the server periodically to keep it awake on platforms like Render.
@@ -14,7 +15,8 @@ const startKeepAlive = (url) => {
   
   // Ping every minute
   setInterval(() => {
-    http.get(url, (res) => {
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, (res) => {
       console.log(`Keep-alive ping to ${url} - Status Code: ${res.statusCode}`);
     }).on('error', (err) => {
       console.error(`Keep-alive ping error: ${err.message}`);

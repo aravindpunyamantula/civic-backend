@@ -11,7 +11,8 @@ exports.getUserProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      logger.warn(`User not found in DB for ID: ${req.user.id}. Returning 401.`);
+      return res.status(401).json({ message: 'User not found or session expired' });
     }
 
     if (user.isBlocked) {

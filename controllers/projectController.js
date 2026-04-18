@@ -171,7 +171,8 @@ exports.likeProject = async (req, res, next) => {
     const project = await Project.findById(req.params.id);
     const user = await User.findById(req.user.id);
 
-    if (!project || !user) return res.status(404).json({ message: 'Not found' });
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!user) return res.status(401).json({ message: 'User not found' });
 
     const isLiked = project.likes.includes(user._id);
 
@@ -200,7 +201,8 @@ exports.saveProject = async (req, res, next) => {
     const project = await Project.findById(req.params.id);
     const user = await User.findById(req.user.id);
 
-    if (!project || !user) return res.status(404).json({ message: 'Not found' });
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!user) return res.status(401).json({ message: 'User not found' });
 
     const isSaved = project.saves.includes(user._id);
 
@@ -481,7 +483,7 @@ exports.deleteProject = async (req, res, next) => {
 exports.getRecommendedProjects = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) return res.status(401).json({ message: 'User not found' });
 
     if (!user.skills || user.skills.length === 0) {
       // If no skills, return latest projects as fallback or empty list? 
@@ -520,7 +522,7 @@ exports.getProjectMatchScore = async (req, res, next) => {
 exports.getRecommendedProjectsWithMatchScore = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) return res.status(401).json({ message: 'User not found' });
 
     // Fetch collaboration open projects excluding owned ones
     const projects = await Project.find({
@@ -675,7 +677,7 @@ exports.addCollaborator = async (req, res) => {
 exports.getSavedProjects = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) return res.status(401).json({ message: 'User not found' });
 
     const projects = await Project.find({
       _id: { $in: user.savedProjects }
@@ -694,6 +696,9 @@ exports.recordView = async (req, res, next) => {
     const userId = req.user.id;
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'Project not found' });
+    
+    const user = await User.findById(userId);
+    if (!user) return res.status(401).json({ message: 'User not found' });
 
     // Unique view: only add if user hasn't viewed before
     if (!project.views.includes(userId)) {
