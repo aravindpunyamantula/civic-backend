@@ -26,9 +26,10 @@ exports.signup = async (req, res, next) => {
     else if (emailParts[1] === 'acet.ac.in') mappedCampus = "ACET";
 
     // Auto-set username as rollNumber from email prefix
-    const rollNo = emailParts[0];
+    const rollNo = emailParts[0].toLowerCase();
     const finalUsername = rollNo;
     const finalRollNumber = rollNo;
+    const finalEmail = email.toLowerCase();
 
     // Roll Number Validation (Extract from email prefix if not provided, or validate if provided)
     if (rollNo.length !== 10) {
@@ -62,7 +63,7 @@ exports.signup = async (req, res, next) => {
     }
 
     // Check if user already exists (by email or username)
-    const existingUser = await User.findOne({ $or: [{ username: finalUsername }, { email }] });
+    const existingUser = await User.findOne({ $or: [{ username: finalUsername }, { email: finalEmail }] });
     if (existingUser) {
       return res.status(400).json({ message: 'User with that roll number or email already exists' });
     }
@@ -70,7 +71,7 @@ exports.signup = async (req, res, next) => {
     // Create new user (password is automatically hashed by the Mongoose pre-save hook)
     const newUser = new User({
       username: finalUsername,
-      email,
+      email: finalEmail,
       fullName,
       rollNumber: finalRollNumber,
       campus: mappedCampus,
@@ -116,12 +117,13 @@ exports.login = async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid input types' });
     }
 
-    // Find the user by username, email, or rollNumber
+    // Find the user by username, email, or rollNumber (case-insensitive)
+    const login = username.toLowerCase();
     const user = await User.findOne({ 
       $or: [
-        { username: username }, 
-        { email: username }, 
-        { rollNumber: username }
+        { username: login }, 
+        { email: login }, 
+        { rollNumber: login }
       ] 
     });
     if (!user) {

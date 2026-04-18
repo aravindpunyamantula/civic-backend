@@ -113,6 +113,7 @@ exports.getReportedUsersCategorized = async (req, res, next) => {
       }
     });
   } catch (err) {
+    console.error('Moderation Dashboard Error Details:', err);
     next(err);
   }
 };
