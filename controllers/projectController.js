@@ -138,7 +138,7 @@ exports.getFeed = async (req, res, next) => {
           }
         }
       }},
-      { $sort: { feedPriority: -1, likesCount: type === 'trending' ? -1 : 1, createdAt: -1 } },
+      { $sort: { feedPriority: -1, likesCount: -1, createdAt: -1 } },
       { $skip: skip },
       { $limit: parseInt(limit) }
     ];
