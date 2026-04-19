@@ -25,6 +25,10 @@ exports.getUserProfile = async (req, res, next) => {
     userData.followingCount = await User.countDocuments({ _id: { $in: userData.following || [] } });
     userData.followRequestsCount = (userData.followRequests || []).length;
 
+    // Find profiles this user has requested to follow
+    const sentRequests = await User.find({ followRequests: user._id }).select('_id');
+    userData.sentRequests = sentRequests.map(u => u._id);
+
     const projectCount = await Project.countDocuments({ owner: user._id });
     userData.projectCount = projectCount;
 
@@ -104,6 +108,14 @@ exports.getUserById = async (req, res, next) => {
 
     const projectCount = await Project.countDocuments({ owner: user._id });
     userData.projectCount = projectCount;
+
+    // Add follow status for the current user
+    if (req.user) {
+      const isFollowing = user.followers.some(id => id.toString() === req.user.id);
+      const isRequested = user.followRequests.some(id => id.toString() === req.user.id);
+      userData.isFollowing = isFollowing;
+      userData.isRequested = isRequested;
+    }
 
     res.status(200).json(userData);
   } catch (error) {
