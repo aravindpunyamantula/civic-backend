@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-module.exports = function (req, res, next) {
+module.exports = async function (req, res, next) {
   // Get token from header
   const authHeader = req.header('Authorization');
 
@@ -17,11 +17,12 @@ module.exports = function (req, res, next) {
   // Verify token
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+    const User = require('../models/User');
+    const user = await User.findById(decoded.id);
+    req.user = user;
     next();
   } catch (err) {
     // If token is invalid, we still proceed but without user context
-    // This allows guest access while still identifying logged in users for filtering
     req.user = null;
     next();
   }
