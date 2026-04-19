@@ -21,6 +21,7 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 const problemRoutes = require('./routes/problemRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const announcementRoutes = require('./routes/announcementRoutes');
 const startKeepAlive = require('./utils/keepAlive');
 
 // Middleware
@@ -107,6 +108,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/problems', problemRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/announcements', announcementRoutes);
 
 // Error Handling Middleware (Must be last)
 app.use(errorHandler);

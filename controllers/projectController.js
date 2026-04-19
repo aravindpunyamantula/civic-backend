@@ -114,7 +114,7 @@ exports.getFeed = async (req, res, next) => {
       try { return new (require('mongoose').Types.ObjectId)(id); } catch(e) { return null; }
     }).filter(Boolean);
 
-    const likesSort = type === 'trending' ? -1 : 1;
+    const shuffle = req.query.shuffle === 'true';
 
     const pipeline = [
       { $match: filter },
@@ -125,6 +125,7 @@ exports.getFeed = async (req, res, next) => {
         isInterest: userSkills.length > 0
           ? { $gt: [{ $size: { $ifNull: [{ $setIntersection: ['$technologies', userSkills] }, []] } }, 0] }
           : { $literal: false },
+        randomOrder: { $rand: {} } // For variety/shuffle
       }},
       { $addFields: {
         feedPriority: {
@@ -138,7 +139,11 @@ exports.getFeed = async (req, res, next) => {
           }
         }
       }},
-      { $sort: { feedPriority: -1, likesCount: -1, createdAt: -1 } },
+      { 
+        $sort: shuffle 
+          ? { feedPriority: -1, randomOrder: 1 } // Shuffled within priority groups
+          : { feedPriority: -1, likesCount: -1, createdAt: -1 } 
+      },
       { $skip: skip },
       { $limit: parseInt(limit) }
     ];

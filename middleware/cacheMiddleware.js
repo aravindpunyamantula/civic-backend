@@ -8,6 +8,12 @@ const cacheMiddleware = (keyPrefix, duration = 600) => {
       return next();
     }
 
+    // Bypass cache if shuffle is requested (Instagram style refresh)
+    if (req.query.shuffle === 'true') {
+      logger.debug(`Bypassing cache for ${keyPrefix} as shuffle is requested`);
+      return next();
+    }
+
     // Generate cache key based on URL and authenticated user (if any)
     const userId = req.user ? req.user.id : 'public';
     const key = `civic:cache:${keyPrefix}:${req.originalUrl}:${userId}`;
