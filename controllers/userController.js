@@ -7,6 +7,22 @@ const { clearCacheByPrefix, clearMultiplePrefixes } = require('../utils/cacheUti
 const { deleteAsset } = require('../utils/cloudinary');
 const logger = require('../middleware/logger');
 
+const _addFollowStatus = (user, currentUserId) => {
+  if (!currentUserId || !user) return user;
+  const u = user.toObject ? user.toObject() : user;
+
+  const followers = u.followers || [];
+  const followRequests = u.followRequests || [];
+
+  u.isFollowing = followers.some(id => id.toString() === currentUserId.toString());
+  u.isRequested = followRequests.some(id => id.toString() === currentUserId.toString());
+
+  u.followersCount = followers.length;
+  u.followingCount = (u.following || []).length;
+
+  return u;
+};
+
 // Fetch user profile
 exports.getUserProfile = async (req, res, next) => {
   try {
@@ -42,7 +58,7 @@ exports.getUserProfile = async (req, res, next) => {
 exports.updateUserProfile = async (req, res, next) => {
   try {
     const { fullName, bio, skills, profileImage, portfolio, github, leetcode, codechef, gfg, linkedin, phoneNumber, personalEmail } = req.body;
-    
+
     logger.info(`Profile update request received for user: ${req.user.id}`);
 
     const user = await User.findById(req.user.id);
@@ -73,10 +89,10 @@ exports.updateUserProfile = async (req, res, next) => {
 
     logger.info(`Saving profile for user: ${user.username}`);
     const updatedUser = await user.save();
-    
+
     // Use non-blocking cache clear
     clearCacheByPrefix('profile').catch(err => {
-        logger.error(`Cache clear failed for prefix 'profile':`, err);
+      logger.error(`Cache clear failed for prefix 'profile':`, err);
     });
 
     logger.info(`Profile updated for user: ${user.username}`);
@@ -88,9 +104,9 @@ exports.updateUserProfile = async (req, res, next) => {
   } catch (error) {
     logger.error(`Error updating user profile for ID ${req.user.id}:`, error);
     if (!res.headersSent) {
-      res.status(500).json({ 
-        message: 'Failed to update profile due to a server error', 
-        error: process.env.NODE_ENV === 'production' ? undefined : error.message 
+      res.status(500).json({
+        message: 'Failed to update profile due to a server error',
+        error: process.env.NODE_ENV === 'production' ? undefined : error.message
       });
     }
   }
@@ -128,21 +144,23 @@ exports.getFollowers = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    
+
     const rawCount = (user.followers || []).length;
-    await user.populate('followers', 'username fullName profileImage _id');
+    await user.populate('followers', 'username fullName profileImage _id followers followRequests following');
     const validFollowers = user.followers.filter(f => f != null);
-    
+
     if (validFollowers.length !== rawCount) {
-        // Update database to remove ghost IDs
-        await User.findByIdAndUpdate(req.params.id, { 
-            $set: { followers: validFollowers.map(f => f._id) } 
-        });
-        await clearCacheByPrefix('profile');
-        logger.info(`Sanitized followers list for user: ${req.params.id}. Removed ${rawCount - validFollowers.length} ghost IDs.`);
+      // Update database to remove ghost IDs
+      await User.findByIdAndUpdate(req.params.id, {
+        $set: { followers: validFollowers.map(f => f._id) }
+      });
+      await clearCacheByPrefix('profile');
+      logger.info(`Sanitized followers list for user: ${req.params.id}. Removed ${rawCount - validFollowers.length} ghost IDs.`);
     }
 
-    res.status(200).json(validFollowers);
+    const followersWithStatus = validFollowers.map(f => _addFollowStatus(f, req.user?.id));
+
+    res.status(200).json(followersWithStatus);
   } catch (error) {
     next(error);
   }
@@ -153,20 +171,22 @@ exports.getFollowing = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    
+
     const rawCount = (user.following || []).length;
-    await user.populate('following', 'username fullName profileImage _id');
+    await user.populate('following', 'username fullName profileImage _id followers followRequests following');
     const validFollowing = user.following.filter(f => f != null);
-    
+
     if (validFollowing.length !== rawCount) {
-        await User.findByIdAndUpdate(req.params.id, { 
-            $set: { following: validFollowing.map(f => f._id) } 
-        });
-        await clearCacheByPrefix('profile');
-        logger.info(`Sanitized following list for user: ${req.params.id}. Removed ${rawCount - validFollowing.length} ghost IDs.`);
+      await User.findByIdAndUpdate(req.params.id, {
+        $set: { following: validFollowing.map(f => f._id) }
+      });
+      await clearCacheByPrefix('profile');
+      logger.info(`Sanitized following list for user: ${req.params.id}. Removed ${rawCount - validFollowing.length} ghost IDs.`);
     }
 
-    res.status(200).json(validFollowing);
+    const followingWithStatus = validFollowing.map(f => _addFollowStatus(f, req.user?.id));
+
+    res.status(200).json(followingWithStatus);
   } catch (error) {
     next(error);
   }
@@ -180,9 +200,9 @@ exports.followUser = async (req, res, next) => {
     }
     const targetUser = await User.findById(req.params.id);
     const currentUser = await User.findById(req.user.id);
-    
+
     if (!targetUser || !currentUser) return res.status(404).json({ message: 'User not found' });
-    
+
     const targetIdStr = targetUser._id.toString();
     const isFollowing = currentUser.following.some(id => id.toString() === targetIdStr);
     const hasRequested = targetUser.followRequests.some(id => id.toString() === currentUser._id.toString());
@@ -214,11 +234,11 @@ exports.followUser = async (req, res, next) => {
           }
         });
       }
-      
+
       await clearMultiplePrefixes(['profile', 'user_search']);
-      
+
       logger.info(`User ${req.user.id} requested to follow ${req.params.id}`);
-      return res.status(200).json({ 
+      return res.status(200).json({
         message: 'Follow request sent',
         followStatus: 'REQUESTED'
       });
@@ -237,34 +257,34 @@ exports.unfollowUser = async (req, res, next) => {
   try {
     const targetUser = await User.findById(req.params.id);
     const currentUser = await User.findById(req.user.id);
-    
+
     if (!targetUser || !currentUser) return res.status(404).json({ message: 'User not found' });
-    
+
     const targetIdStr = targetUser._id.toString();
     const isFollowing = currentUser.following.some(id => id.toString() === targetIdStr);
 
     if (isFollowing) {
       await User.findByIdAndUpdate(req.user.id, { $pull: { following: targetUser._id } });
       await User.findByIdAndUpdate(targetUser._id, { $pull: { followers: currentUser._id } });
-      
+
       // If there's a follow request notification, remove it (sender is target, recipient is current, but actually follow goes both ways? No, sender requested to follow)
       // Actually, if I unfollow someone, I was the one following. 
-      
+
       await clearMultiplePrefixes(['profile', 'user_search']);
-      
+
       logger.info(`User ${req.user.id} unfollowed ${req.params.id}`);
-      return res.status(200).json({ 
+      return res.status(200).json({
         message: 'User unfollowed successfully',
-        followersCount: targetUser.followers.length - 1, 
+        followersCount: targetUser.followers.length - 1,
         followingCount: currentUser.following.length - 1
-       });
+      });
     } else {
       // Check if there's a pending request to cancel
       const hasRequested = targetUser.followRequests.some(id => id.toString() === currentUser._id.toString());
       if (hasRequested) {
         targetUser.followRequests.pull(currentUser._id);
         await targetUser.save();
-        
+
         // Delete the notification
         await Notification.findOneAndDelete({
           recipient: targetUser._id,
@@ -272,6 +292,7 @@ exports.unfollowUser = async (req, res, next) => {
           type: 'FOLLOW_REQ'
         });
 
+        await clearMultiplePrefixes(['profile', 'user_search']);
         return res.status(200).json({ message: 'Follow request cancelled' });
       }
       return res.status(400).json({ message: 'Not following user' });
@@ -299,7 +320,7 @@ exports.acceptFollowRequest = async (req, res, next) => {
     if (!currentUser.followers.includes(requesterId)) {
       currentUser.followers.push(requesterId);
     }
-    
+
     // Add to requester's following
     if (!requesterUser.following.includes(currentUser._id)) {
       requesterUser.following.push(currentUser._id);
@@ -380,7 +401,7 @@ exports.getFollowRequests = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id)
       .populate('followRequests', 'username fullName profileImage _id');
-    
+
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     res.status(200).json(user.followRequests);
@@ -439,17 +460,12 @@ exports.searchUsers = async (req, res, next) => {
     };
 
     const users = await User.find(query)
-      .select('username fullName profileImage bio followers following')
+      .select('username fullName profileImage bio followers following followRequests')
       .limit(20);
 
-    const usersWithCounts = users.map(user => {
-      const u = user.toObject();
-      u.followersCount = u.followers ? u.followers.length : 0;
-      u.followingCount = u.following ? u.following.length : 0;
-      return u;
-    });
+    const usersWithStatus = users.map(user => _addFollowStatus(user, req.user?.id));
 
-    res.status(200).json(usersWithCounts);
+    res.status(200).json(usersWithStatus);
   } catch (error) {
     next(error);
   }
@@ -464,16 +480,17 @@ exports.getSuggestedUsers = async (req, res, next) => {
     if (!project) return res.status(404).json({ message: 'Project not found' });
 
     if (project.owner.toString() !== req.user.id) {
-       return res.status(403).json({ message: 'Unauthorized: Only project owner can view suggestions' });
+      return res.status(403).json({ message: 'Unauthorized: Only project owner can view suggestions' });
     }
 
     const users = await User.find({ _id: { $ne: project.owner } })
-      .select('username fullName profileImage bio skills followers following');
+      .select('username fullName profileImage bio skills followers following followRequests');
 
     const suggestedUsers = users.map(u => {
       const matchData = calculateMatchScore(u, project);
+      const userWithStatus = _addFollowStatus(u, req.user?.id);
       return {
-        ...u.toObject(),
+        ...userWithStatus,
         matchScore: matchData.score,
         matchReasons: matchData.reasons
       };

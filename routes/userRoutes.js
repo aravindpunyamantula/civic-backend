@@ -3,10 +3,11 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 const reportController = require('../controllers/reportController');
 const authMiddleware = require('../middleware/authMiddleware');
+const optionalAuth = require('../middleware/optionalAuth');
 const cacheMiddleware = require('../middleware/cacheMiddleware');
 
 // Search users (Cache for 10 mins)
-router.get('/search', cacheMiddleware('user_search', 600), userController.searchUsers);
+router.get('/search', optionalAuth, cacheMiddleware('user_search', 600), userController.searchUsers);
 router.get('/suggested', authMiddleware, userController.getSuggestedUsers);
 
 // Get current user profile (Cache for 10 mins)
@@ -16,13 +17,13 @@ router.get('/profile', authMiddleware, cacheMiddleware('profile', 600), userCont
 router.put('/profile', authMiddleware, userController.updateUserProfile);
 
 // Get user by ID
-router.get('/:id', userController.getUserById);
+router.get('/:id', optionalAuth, userController.getUserById);
 
 // Get followers
-router.get('/:id/followers', userController.getFollowers);
+router.get('/:id/followers', optionalAuth, userController.getFollowers);
 
 // Get following
-router.get('/:id/following', userController.getFollowing);
+router.get('/:id/following', optionalAuth, userController.getFollowing);
 
 // Follow user (Sends request)
 router.post('/:id/follow', authMiddleware, userController.followUser);

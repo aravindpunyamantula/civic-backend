@@ -70,7 +70,7 @@ exports.createProject = async (req, res, next) => {
 
 exports.getFeed = async (req, res, next) => {
   try {
-    const { type, status, collaborationOpen, ownerId, skills, page = 1, limit = 20 } = req.query;
+    const { type, status, collaborationOpen, ownerId, skills, page = 1, limit = 20, isPassedOut } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     let filter = {};
@@ -139,14 +139,67 @@ exports.getFeed = async (req, res, next) => {
           }
         }
       }},
-      { 
-        $sort: shuffle 
-          ? { feedPriority: -1, randomOrder: 1 } // Shuffled within priority groups
-          : { feedPriority: -1, likesCount: -1, createdAt: -1 } 
-      },
+      { $addFields: {
+        totalPopularity: { $add: ["$likesCount", { $ifNull: ["$viewsCount", 0] }] }
+      }}
+    ];
+
+    // Handle "Passed Out Students" filter
+    if (isPassedOut === 'true' || isPassedOut === true) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'owner',
+            foreignField: '_id',
+            as: 'ownerDetails'
+          }
+        },
+        { $unwind: '$ownerDetails' },
+        { 
+          $match: {
+            'ownerDetails.rollNumber': { $exists: true }
+          }
+        },
+        {
+          $addFields: {
+            // Extract first 2 digits of rollNumber
+            joiningYearShort: { $substr: ['$ownerDetails.rollNumber', 0, 2] }
+          }
+        },
+        {
+          $addFields: {
+            joiningYear: { $add: [2000, { $toInt: '$joiningYearShort' }] }
+          }
+        },
+        {
+          $match: {
+            // Joined in 2022 or earlier = Graduated by/in 2026
+            joiningYear: { $lte: 2022 } 
+          }
+        }
+      );
+    }
+
+    const sortOptions = {};
+    if (isPassedOut === 'true' || isPassedOut === true) {
+      // Most popular first: high likes and views
+      sortOptions.totalPopularity = -1;
+      sortOptions.createdAt = -1;
+    } else if (shuffle) {
+      sortOptions.feedPriority = -1;
+      sortOptions.randomOrder = 1;
+    } else {
+      sortOptions.feedPriority = -1;
+      sortOptions.likesCount = -1;
+      sortOptions.createdAt = -1;
+    }
+
+    pipeline.push(
+      { $sort: sortOptions },
       { $skip: skip },
       { $limit: parseInt(limit) }
-    ];
+    );
 
     let projects = await Project.aggregate(pipeline);
 
