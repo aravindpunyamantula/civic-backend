@@ -3,28 +3,28 @@ const logger = require('./logger');
 
 // General API Rate Limiter
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: parseInt(process.env.RATE_LIMIT_API_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_API_MAX) || 100,
   message: {
-    message: 'Too many requests from this IP, please try again after 15 minutes'
+    message: 'Too many requests, please try again later'
   },
   handler: (req, res, next, options) => {
     logger.warn(`Rate limit exceeded for IP: ${req.ip} on ${req.originalUrl}`);
     res.status(options.statusCode).send(options.message);
   },
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
-// Authentication Rate Limiter (More strict: 5 per minute)
+// Authentication Rate Limiter
 const authLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 5,
+  windowMs: parseInt(process.env.RATE_LIMIT_AUTH_WINDOW_MS) || 1 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_AUTH_MAX) || 5,
   message: {
     message: 'Too many login attempts, please try again after a minute'
   },
   handler: (req, res, next, options) => {
-    logger.warn(`Auth rate limit exceeded for IP: \${req.ip}`);
+    logger.warn(`Auth rate limit exceeded for IP: ${req.ip}`);
     res.status(options.statusCode).send(options.message);
   },
   standardHeaders: true,

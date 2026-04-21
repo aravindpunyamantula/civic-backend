@@ -59,7 +59,7 @@ app.use(morgan('combined', {
   stream: { write: (message) => logger.info(message.trim()) } 
 }));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 app.use(express.static('public'));
 
