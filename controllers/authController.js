@@ -198,7 +198,8 @@ exports.forgotPassword = async (req, res, next) => {
     if (!sent) return res.status(500).json({ message: 'Failed to send OTP email' });
 
     res.status(200).json({
-      message: 'OTP sent to your email',
+      message: `OTP sent to your institutional email: ${user.email}`,
+      emailSentTo: user.email,
       verificationToken: `${expiry}|${token}`
     });
   } catch (err) {
@@ -269,18 +270,21 @@ exports.changePassword = async (req, res, next) => {
 exports.requestEmailVerification = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user.personalEmail) return res.status(400).json({ message: 'Personal email not set' });
-    if (user.isPersonalEmailVerified) return res.status(400).json({ message: 'Email already verified' });
+    const targetEmail = user.personalEmail || user.email;
+    const isFallback = !user.personalEmail;
 
     const otp = generateOTP();
     const expiry = Date.now() + 10 * 60 * 1000;
-    const token = generateOTPToken(user.personalEmail, otp, expiry);
+    const token = generateOTPToken(targetEmail, otp, expiry);
 
-    const sent = await sendOTPEmail(user.personalEmail, otp, 'verification');
+    const sent = await sendOTPEmail(targetEmail, otp, 'verification');
     if (!sent) return res.status(500).json({ message: 'Failed to send OTP email' });
 
     res.status(200).json({
-      message: 'Verification OTP sent to your personal email',
+      message: isFallback 
+        ? `Verification OTP sent to your institutional email: ${targetEmail}` 
+        : `Verification OTP sent to your personal email: ${targetEmail}`,
+      emailSentTo: targetEmail,
       verificationToken: `${expiry}|${token}`
     });
   } catch (err) {
@@ -295,9 +299,10 @@ exports.confirmEmailVerification = async (req, res, next) => {
     if (!otp || !verificationToken) return res.status(400).json({ message: 'OTP and token required' });
 
     const user = await User.findById(req.user.id);
+    const targetEmail = user.personalEmail || user.email;
     const [expiry, hash] = verificationToken.split('|');
     
-    const isValid = verifyOTPToken(user.personalEmail, otp, parseInt(expiry), hash);
+    const isValid = verifyOTPToken(targetEmail, otp, parseInt(expiry), hash);
     if (!isValid) return res.status(400).json({ message: 'Invalid or expired OTP' });
 
     user.isPersonalEmailVerified = true;
