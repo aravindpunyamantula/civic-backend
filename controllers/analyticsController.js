@@ -100,3 +100,19 @@ exports.getPersonalStats = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.getAdminStats = async (req, res, next) => {
+  try {
+    const userCount = await User.countDocuments();
+    const projectCount = await Project.countDocuments();
+    const problemCount = await mongoose.model('Problem').countDocuments();
+    
+    res.status(200).json({
+      userCount,
+      projectCount,
+      problemCount
+    });
+  } catch (error) {
+    next(error);
+  }
+};

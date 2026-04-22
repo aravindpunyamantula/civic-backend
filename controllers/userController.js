@@ -2,7 +2,6 @@ const User = require('../models/User');
 const Project = require('../models/Project');
 const Comment = require('../models/Comment');
 const Notification = require('../models/Notification');
-const { calculateMatchScore } = require('../utils/matchingEngine');
 const { clearCacheByPrefix, clearMultiplePrefixes } = require('../utils/cacheUtils');
 const { deleteAsset } = require('../utils/cloudinary');
 const logger = require('../middleware/logger');
@@ -115,7 +114,7 @@ exports.updateUserProfile = async (req, res, next) => {
 // Get user by ID
 exports.getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findById(req.params.id).select('-password -isAdmin');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const userData = user.toObject();
@@ -455,7 +454,8 @@ exports.searchUsers = async (req, res, next) => {
     const query = {
       $or: [
         { username: { $regex: q, $options: 'i' } },
-        { fullName: { $regex: q, $options: 'i' } }
+        { fullName: { $regex: q, $options: 'i' } },
+        { rollNumber: { $regex: q, $options: 'i' } }
       ]
     };
 
@@ -471,34 +471,3 @@ exports.searchUsers = async (req, res, next) => {
   }
 };
 
-exports.getSuggestedUsers = async (req, res, next) => {
-  try {
-    const { projectId } = req.query;
-    if (!projectId) return res.status(400).json({ message: 'projectId is required' });
-
-    const project = await Project.findById(projectId);
-    if (!project) return res.status(404).json({ message: 'Project not found' });
-
-    if (project.owner.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Unauthorized: Only project owner can view suggestions' });
-    }
-
-    const users = await User.find({ _id: { $ne: project.owner } })
-      .select('username fullName profileImage bio skills followers following followRequests');
-
-    const suggestedUsers = users.map(u => {
-      const matchData = calculateMatchScore(u, project);
-      const userWithStatus = _addFollowStatus(u, req.user?.id);
-      return {
-        ...userWithStatus,
-        matchScore: matchData.score,
-        matchReasons: matchData.reasons
-      };
-    });
-
-    suggestedUsers.sort((a, b) => b.matchScore - a.matchScore);
-    res.status(200).json(suggestedUsers.slice(0, 20));
-  } catch (error) {
-    next(error);
-  }
-};

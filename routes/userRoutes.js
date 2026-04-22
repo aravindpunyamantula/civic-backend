@@ -8,7 +8,6 @@ const cacheMiddleware = require('../middleware/cacheMiddleware');
 
 // Search users (Cache for 10 mins)
 router.get('/search', optionalAuth, cacheMiddleware('user_search', 600), userController.searchUsers);
-router.get('/suggested', authMiddleware, userController.getSuggestedUsers);
 
 // Get current user profile (Cache for 10 mins)
 router.get('/profile', authMiddleware, cacheMiddleware('profile', 600), userController.getUserProfile);

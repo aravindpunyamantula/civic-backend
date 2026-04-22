@@ -69,28 +69,21 @@ exports.getProblemById = async (req, res, next) => {
     const isOwner = req.user && problem.createdBy._id.toString() === req.user.id;
     const isFollower = req.user && problem.createdBy.followers.some(id => id.toString() === req.user.id);
 
-    let projects = [];
-    let comments = [];
-
-    if (isOwner || isFollower) {
-      projects = await Project.find({ originProblemId: problem._id })
-        .populate('owner', 'username fullName profileImage')
-        .sort({ createdAt: -1 });
-      
-      // Re-populate comments.user properly since we are returning them now
-      const populatedProblem = await Problem.findById(problem._id)
-        .populate('comments.user', 'username fullName profileImage');
-      comments = populatedProblem.comments;
-    }
+    projects = await Project.find({ originProblemId: problem._id })
+      .populate('owner', 'username fullName profileImage')
+      .sort({ createdAt: -1 });
+    
+    const populatedProblem = await Problem.findById(problem._id)
+      .populate('comments.user', 'username fullName profileImage');
+    comments = populatedProblem.comments;
 
     const problemObj = problem.toObject();
-    delete problemObj.createdBy.followers; // Don't leak followers list
+    delete problemObj.createdBy.followers;
 
     res.status(200).json({
       ...problemObj,
-      comments: (isOwner || isFollower) ? comments : [],
-      projects: (isOwner || isFollower) ? projects : [],
-      isDiscussionRestricted: !(isOwner || isFollower)
+      comments: comments,
+      projects: projects
     });
   } catch (error) {
     next(error);
@@ -138,12 +131,6 @@ exports.addComment = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Problem not found' });
     }
 
-    const isOwner = problem.createdBy._id.toString() === req.user.id;
-    const isFollower = problem.createdBy.followers.some(id => id.toString() === req.user.id);
-
-    if (!isOwner && !isFollower) {
-      return res.status(403).json({ success: false, message: 'You must follow the owner to join the discussion' });
-    }
 
     const comment = {
       user: req.user.id,
@@ -159,6 +146,34 @@ exports.addComment = async (req, res, next) => {
       .populate('comments.user', 'username fullName profileImage');
 
     res.status(201).json(updatedProblem.comments[updatedProblem.comments.length - 1]);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteComment = async (req, res, next) => {
+  try {
+    const { id, commentId } = req.params;
+    const problem = await Problem.findById(id);
+
+    if (!problem) {
+      return res.status(404).json({ success: false, message: 'Problem not found' });
+    }
+
+    const comment = problem.comments.id(commentId);
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' });
+    }
+
+    // Only creator of comment, problem creator, or admin can delete
+    if (comment.user.toString() !== req.user.id && problem.createdBy.toString() !== req.user.id && !req.user.isAdmin) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this comment' });
+    }
+
+    problem.comments.pull(commentId);
+    await problem.save();
+
+    res.status(200).json({ success: true, message: 'Comment deleted' });
   } catch (error) {
     next(error);
   }

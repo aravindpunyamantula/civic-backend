@@ -10,6 +10,7 @@ router.use((req, res, next) => {
 });
 
 router.post('/:id/comments', authMiddleware, problemController.addComment);
+router.delete('/:id/comments/:commentId', authMiddleware, problemController.deleteComment);
 router.post('/', authMiddleware, problemController.createProblem);
 router.get('/', optionalAuth, problemController.getProblems);
 router.get('/:id', optionalAuth, problemController.getProblemById);

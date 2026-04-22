@@ -3,7 +3,6 @@ const User = require('../models/User');
 const Message = require('../models/Message');
 const Notification = require('../models/Notification');
 const { normalizeSkills } = require('../utils/skillUtils');
-const { calculateMatchScore } = require('../utils/matchingEngine');
 const { clearCacheByPrefix, clearMultiplePrefixes } = require('../utils/cacheUtils');
 const { deleteAsset } = require('../utils/cloudinary');
 const logger = require('../middleware/logger');
@@ -204,7 +203,7 @@ exports.getFeed = async (req, res, next) => {
     let projects = await Project.aggregate(pipeline);
 
     await Project.populate(projects, [
-      { path: 'owner', select: 'username fullName profileImage isAdmin' },
+      { path: 'owner', select: 'username fullName profileImage' },
       { path: 'originProblemId', select: 'title' }
     ]);
 
@@ -506,6 +505,7 @@ exports.updateProject = async (req, res, next) => {
 
     // Update collaborators if team members changed
     if (Array.isArray(teamMembers)) {
+      project.teamMembers = teamMembers;
       teamMembers.forEach(member => {
         if (member.user && !project.collaborators.includes(member.user)) {
           project.collaborators.push(member.user);
@@ -562,73 +562,7 @@ exports.deleteProject = async (req, res, next) => {
   }
 };
 
-exports.getRecommendedProjects = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(401).json({ message: 'User not found' });
-
-    if (!user.skills || user.skills.length === 0) {
-      // If no skills, return latest projects as fallback or empty list? 
-      // Requirement says "Return projects based on user skills", so I'll return empty list to be strict, 
-      // or maybe the user wants some discovery. Let's return empty list for now.
-      return res.status(200).json([]);
-    }
-
-    const recommendedProjects = await Project.find({
-      technologies: { $in: user.skills },
-      owner: { $ne: user._id }
-    })
-      .populate('owner', 'username fullName profileImage')
-      .sort({ createdAt: -1 })
-      .limit(20);
-
-    res.status(200).json(recommendedProjects);
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.getProjectMatchScore = async (req, res, next) => {
-  try {
-    const project = await Project.findById(req.params.id);
-    const user = await User.findById(req.user.id);
-    if (!project || !user) return res.status(404).json({ message: 'Project or user not found' });
-
-    const matchData = calculateMatchScore(user, project);
-    res.status(200).json(matchData);
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.getRecommendedProjectsWithMatchScore = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(401).json({ message: 'User not found' });
-
-    // Fetch collaboration open projects excluding owned ones
-    const projects = await Project.find({
-      owner: { $ne: user._id },
-      isCollaborationOpen: true
-    }).populate('owner', 'username fullName profileImage');
-
-    const scoredProjects = projects.map(p => {
-      const matchData = calculateMatchScore(user, p);
-      return {
-        ...p.toObject(),
-        matchScore: matchData.score,
-        matchReasons: matchData.reasons
-      };
-    });
-
-    // Sort by score descending
-    scoredProjects.sort((a, b) => b.matchScore - a.matchScore);
-
-    res.status(200).json(scoredProjects);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching recommended matches', error: error.message });
-  }
-};
+// addComment removed
 
 // addComment removed
 
@@ -656,6 +590,38 @@ exports.getChatHistory = async (req, res) => {
     res.status(200).json(messages);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching chat history', error: error.message });
+  }
+};
+
+exports.deleteMessage = async (req, res, next) => {
+  try {
+    const { id, messageId } = req.params;
+    const project = await Project.findById(id);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ message: 'Message not found' });
+
+    // Conditions for deletion: Admin, Message Sender, or Project Owner
+    const isOwner = project.owner.toString() === req.user.id;
+    const isSender = message.sender.toString() === req.user.id;
+    const isAdmin = req.user.isAdmin === true;
+
+    if (!isOwner && !isSender && !isAdmin) {
+      return res.status(403).json({ message: 'Unauthorized to delete this message' });
+    }
+
+    await Message.findByIdAndDelete(messageId);
+
+    // Notify other users in the project room via socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(id).emit('message_deleted', { messageId });
+    }
+
+    res.status(200).json({ message: 'Message deleted successfully' });
+  } catch (error) {
+    next(error);
   }
 };
 

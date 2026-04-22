@@ -88,6 +88,10 @@ const UserSchema = new mongoose.Schema({
   codechef: { type: String, default: '' },
   gfg: { type: String, default: '' },
   linkedin: { type: String, default: '' },
+  isPersonalEmailVerified: {
+    type: Boolean,
+    default: false,
+  },
   isAdmin: {
     type: Boolean,
     default: false,

@@ -9,6 +9,9 @@ router.get('/branch-stats', cacheMiddleware('analytics:branches', 600), analytic
 router.get('/tech-usage', cacheMiddleware('analytics:tech', 600), analyticsController.getTechUsage);
 
 const auth = require('../middleware/authMiddleware');
+const admin = require('../middleware/adminMiddleware');
+
+router.get('/admin/stats', auth, admin, analyticsController.getAdminStats);
 router.get('/personal', auth, analyticsController.getPersonalStats);
 
 module.exports = router;

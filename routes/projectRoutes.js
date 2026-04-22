@@ -13,12 +13,8 @@ router.get('/user/discussions', authMiddleware, projectController.getUserDiscuss
 router.get('/user/saved', authMiddleware, projectController.getSavedProjects);
 router.get('/user/:userId', cacheMiddleware('user_projects', 600), projectController.getUserProjects);
 
-// Get Recommended Projects
-router.get('/recommended', authMiddleware, projectController.getRecommendedProjects);
-router.get('/recommended/match', authMiddleware, projectController.getRecommendedProjectsWithMatchScore);
-
-// Get Project match score
-router.get('/:id/match', authMiddleware, projectController.getProjectMatchScore);
+// Get Project by id
+router.get('/:id', cacheMiddleware('project_detail', 600), projectController.getProjectById);
 
 // Get Project by id
 router.get('/:id', cacheMiddleware('project_detail', 600), projectController.getProjectById);
@@ -43,6 +39,7 @@ router.get('/:id/requests', authMiddleware, projectController.getCollabRequests)
 router.post('/:id/accept-request', authMiddleware, projectController.acceptCollabRequest);
 router.post('/:id/reject-request', authMiddleware, projectController.rejectCollabRequest);
 router.get('/:id/messages', authMiddleware, projectController.getChatHistory);
+router.delete('/:id/messages/:messageId', authMiddleware, projectController.deleteMessage);
 router.post('/:id/collaborators', authMiddleware, projectController.addCollaborator);
 router.delete('/:id/collaborators/:userId', authMiddleware, projectController.removeCollaborator);
 

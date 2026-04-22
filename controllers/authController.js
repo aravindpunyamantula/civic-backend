@@ -2,6 +2,8 @@ const User = require('../models/User');
 const BannedIdentifier = require('../models/BannedIdentifier');
 const { clearMultiplePrefixes } = require('../utils/cacheUtils');
 const logger = require('../middleware/logger');
+const { generateOTP, generateOTPToken, verifyOTPToken } = require('../utils/otpUtils');
+const { sendOTPEmail } = require('../utils/emailService');
 
 // Signup logic
 exports.signup = async (req, res, next) => {
@@ -37,9 +39,9 @@ exports.signup = async (req, res, next) => {
     }
 
     // Password Complexity Validation
-    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z\s]).{8,}$/;
     if (!passRegex.test(password)) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters, and include uppercase, lowercase, number, and special character' });
+      return res.status(400).json({ message: 'Password must be at least 8 characters, and include uppercase, lowercase, number, and at least one special character' });
     }
 
     const validBranches = ["CSE", "IT", "AIML", "AI-DS", "IOT", "ECE", "EEE", "MECH", "CIVIL", "CHEMICAL", "AGRICULTURE", "PT-MINING"];
@@ -174,6 +176,134 @@ exports.login = async (req, res, next) => {
         warningMessage: user.warningMessage
       },
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Request Password Reset OTP
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return res.status(404).json({ message: 'User with this email not found' });
+
+    const otp = generateOTP();
+    const expiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const token = generateOTPToken(user.email, otp, expiry);
+
+    const sent = await sendOTPEmail(user.email, otp, 'reset');
+    if (!sent) return res.status(500).json({ message: 'Failed to send OTP email' });
+
+    res.status(200).json({
+      message: 'OTP sent to your email',
+      verificationToken: `${expiry}|${token}`
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Reset Password using OTP (Public)
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const { email, otp, verificationToken, newPassword } = req.body;
+
+    if (!email || !otp || !verificationToken || !newPassword) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // Password Complexity Validation
+    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z\s]).{8,}$/;
+    if (!passRegex.test(newPassword)) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters, and include uppercase, lowercase, number, and at least one special character' });
+    }
+
+    const [expiry, hash] = verificationToken.split('|');
+    const isValid = verifyOTPToken(email.toLowerCase(), otp, parseInt(expiry), hash);
+
+    if (!isValid) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({ message: 'Password reset successful. You can now login.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Change Password (Authenticated)
+exports.changePassword = async (req, res, next) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) return res.status(400).json({ message: 'Old and new passwords required' });
+
+    // Password Complexity Validation
+    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z\s]).{8,}$/;
+    if (!passRegex.test(newPassword)) {
+      return res.status(400).json({ message: 'New password must be at least 8 characters, and include uppercase, lowercase, number, and at least one special character' });
+    }
+
+    const user = await User.findById(req.user.id);
+    const isMatch = await user.comparePassword(oldPassword);
+    if (!isMatch) return res.status(400).json({ message: 'Incorrect old password' });
+
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({ message: 'Password changed successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Request Email Verification OTP (Authenticated)
+exports.requestEmailVerification = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user.personalEmail) return res.status(400).json({ message: 'Personal email not set' });
+    if (user.isPersonalEmailVerified) return res.status(400).json({ message: 'Email already verified' });
+
+    const otp = generateOTP();
+    const expiry = Date.now() + 10 * 60 * 1000;
+    const token = generateOTPToken(user.personalEmail, otp, expiry);
+
+    const sent = await sendOTPEmail(user.personalEmail, otp, 'verification');
+    if (!sent) return res.status(500).json({ message: 'Failed to send OTP email' });
+
+    res.status(200).json({
+      message: 'Verification OTP sent to your personal email',
+      verificationToken: `${expiry}|${token}`
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Confirm Email Verification (Authenticated)
+exports.confirmEmailVerification = async (req, res, next) => {
+  try {
+    const { otp, verificationToken } = req.body;
+    if (!otp || !verificationToken) return res.status(400).json({ message: 'OTP and token required' });
+
+    const user = await User.findById(req.user.id);
+    const [expiry, hash] = verificationToken.split('|');
+    
+    const isValid = verifyOTPToken(user.personalEmail, otp, parseInt(expiry), hash);
+    if (!isValid) return res.status(400).json({ message: 'Invalid or expired OTP' });
+
+    user.isPersonalEmailVerified = true;
+    await user.save();
+
+    res.status(200).json({ message: 'Email verified successfully' });
   } catch (err) {
     next(err);
   }
