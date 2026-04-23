@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Notification = require('../models/Notification');
@@ -56,7 +57,11 @@ exports.getAllUsers = async (req, res, next) => {
 // @route   PUT /api/admin/users/:id
 exports.updateUser = async (req, res, next) => {
   try {
-    const user = await User.findByIdAndUpdate(req.params.id, req.body, {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid User ID' });
+    }
+    const user = await User.findByIdAndUpdate(id, req.body, {
       new: true,
       runValidators: true
     }).select('-password');
@@ -75,7 +80,11 @@ exports.updateUser = async (req, res, next) => {
 // @route   PUT /api/admin/users/:id/block
 exports.toggleBlockUser = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid User ID' });
+    }
+    const user = await User.findById(id);
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
@@ -141,6 +150,9 @@ exports.getReportedUsersCategorized = async (req, res, next) => {
 exports.getUserContent = async (req, res, next) => {
   try {
     const userId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid User ID' });
+    }
     
     const reports = await Report.find({ target: userId }).populate('reporter', 'username fullName');
     const projects = await Project.find({ owner: userId });
@@ -163,8 +175,12 @@ exports.getUserContent = async (req, res, next) => {
 // @route   POST /api/admin/users/:id/warn
 exports.warnUser = async (req, res, next) => {
   try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid User ID' });
+    }
     const { message } = req.body;
-    const user = await User.findById(req.params.id);
+    const user = await User.findById(id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     user.warningExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day
@@ -182,9 +198,13 @@ exports.warnUser = async (req, res, next) => {
 // @route   POST /api/admin/users/:id/suspend
 exports.suspendUser = async (req, res, next) => {
   try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid User ID' });
+    }
     const { days } = req.body;
     const duration = days || 7; // Default 7 days
-    const user = await User.findById(req.params.id);
+    const user = await User.findById(id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     user.suspensionExpiresAt = new Date(Date.now() + duration * 24 * 60 * 60 * 1000);
@@ -201,7 +221,11 @@ exports.suspendUser = async (req, res, next) => {
 // @route   POST /api/admin/users/:id/ban
 exports.banUser = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid User ID' });
+    }
+    const user = await User.findById(id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     user.isPermanentlyBanned = true;

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Comment = require('../models/Comment');
@@ -114,7 +115,11 @@ exports.updateUserProfile = async (req, res, next) => {
 // Get user by ID
 exports.getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select('-password -isAdmin');
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid User ID' });
+    }
+    const user = await User.findById(id).select('-password -isAdmin');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const userData = user.toObject();
@@ -141,7 +146,11 @@ exports.getUserById = async (req, res, next) => {
 // Get user followers
 exports.getFollowers = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid User ID' });
+    }
+    const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const rawCount = (user.followers || []).length;
@@ -168,7 +177,11 @@ exports.getFollowers = async (req, res, next) => {
 // Get user following
 exports.getFollowing = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid User ID' });
+    }
+    const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const rawCount = (user.following || []).length;
@@ -194,10 +207,14 @@ exports.getFollowing = async (req, res, next) => {
 // Follow user
 exports.followUser = async (req, res, next) => {
   try {
-    if (req.user.id === req.params.id) {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid User ID' });
+    }
+    if (req.user.id === id) {
       return res.status(400).json({ message: 'You cannot follow yourself' });
     }
-    const targetUser = await User.findById(req.params.id);
+    const targetUser = await User.findById(id);
     const currentUser = await User.findById(req.user.id);
 
     if (!targetUser || !currentUser) return res.status(404).json({ message: 'User not found' });
@@ -254,7 +271,11 @@ exports.followUser = async (req, res, next) => {
 // Unfollow user
 exports.unfollowUser = async (req, res, next) => {
   try {
-    const targetUser = await User.findById(req.params.id);
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid User ID' });
+    }
+    const targetUser = await User.findById(id);
     const currentUser = await User.findById(req.user.id);
 
     if (!targetUser || !currentUser) return res.status(404).json({ message: 'User not found' });

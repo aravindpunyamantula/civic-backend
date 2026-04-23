@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const User = require('../models/User');
 const redisClient = require('../config/redisClient');
