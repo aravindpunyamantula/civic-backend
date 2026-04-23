@@ -20,4 +20,7 @@ router.post('/users/:id/warn', adminController.warnUser);
 router.post('/users/:id/suspend', adminController.suspendUser);
 router.post('/users/:id/ban', adminController.banUser);
 
+// Platform Overview
+router.get('/stats', adminController.getStats);
+
 module.exports = router;

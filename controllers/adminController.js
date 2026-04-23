@@ -214,3 +214,25 @@ exports.banUser = async (req, res, next) => {
     next(err);
   }
 };
+
+// @desc    Get platform statistics
+// @route   GET /api/admin/stats
+exports.getStats = async (req, res, next) => {
+  try {
+    const userCount = await User.countDocuments();
+    const projectCount = await Project.countDocuments();
+    const problemCount = await Problem.countDocuments();
+    // You can add more stats here if needed, like active projects, recent reports, etc.
+
+    res.status(200).json({
+      success: true,
+      data: {
+        userCount,
+        projectCount,
+        problemCount
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
