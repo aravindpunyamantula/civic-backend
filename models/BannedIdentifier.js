@@ -14,6 +14,4 @@ const BannedIdentifierSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-BannedIdentifierSchema.index({ value: 1 });
-
 module.exports = mongoose.model('BannedIdentifier', BannedIdentifierSchema);
