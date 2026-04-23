@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const User = require('../models/User');
 const Message = require('../models/Message');
@@ -152,14 +153,46 @@ exports.getFeed = async (req, res, next) => {
 
 exports.getProjectById = async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.id)
+    const { id } = req.params;
+    
+    // Validate ObjectId to prevent CastError
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid Project ID' });
+    }
+
+    const project = await Project.findById(id)
       .populate('owner', 'username fullName profileImage campus branch')
       .populate('teamMembers.user', 'username fullName profileImage')
       .populate('collaborators', 'username fullName profileImage')
       .populate('originProblemId', 'title description tags createdBy');
+    
     if (!project) return res.status(404).json({ message: 'Project not found' });
 
     res.status(200).json({ project });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getRecommendedProjects = async (req, res, next) => {
+  try {
+    const feedService = require('../utils/feedService');
+    const limit = parseInt(req.query.limit) || 10;
+    
+    // For now, return a generic recommendation or use generateRankedPool if user is logged in
+    let projectIds = [];
+    if (req.user) {
+      const user = await User.findById(req.user.id);
+      projectIds = await feedService.generateRankedPool(user, { limit });
+    } else {
+      projectIds = await feedService.getColdStartCandidates(limit);
+    }
+    
+    const projects = await Project.find({ _id: { $in: projectIds } })
+      .populate('owner', 'username fullName profileImage')
+      .limit(limit);
+      
+    res.status(200).json(projects);
   } catch (error) {
     next(error);
   }

@@ -13,8 +13,8 @@ router.get('/user/discussions', authMiddleware, projectController.getUserDiscuss
 router.get('/user/saved', authMiddleware, projectController.getSavedProjects);
 router.get('/user/:userId', cacheMiddleware('user_projects', 600), projectController.getUserProjects);
 
-// Get Project by id
-router.get('/:id', cacheMiddleware('project_detail', 600), projectController.getProjectById);
+// Recommendations
+router.get('/recommended', optionalAuth, projectController.getRecommendedProjects);
 
 // Get Project by id
 router.get('/:id', cacheMiddleware('project_detail', 600), projectController.getProjectById);

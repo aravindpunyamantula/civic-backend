@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Problem = require('../models/Problem');
 const Project = require('../models/Project');
 const { normalizeSkills } = require('../utils/skillUtils');
@@ -60,7 +61,12 @@ exports.getProblems = async (req, res, next) => {
 
 exports.getProblemById = async (req, res, next) => {
   try {
-    const problem = await Problem.findById(req.params.id)
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid Problem ID' });
+    }
+
+    const problem = await Problem.findById(id)
       .populate('createdBy', 'username fullName profileImage followers');
     
     if (!problem) return res.status(404).json({ success: false, message: 'Problem not found' });
@@ -92,7 +98,11 @@ exports.getProblemById = async (req, res, next) => {
 
 exports.convertToProject = async (req, res, next) => {
   try {
-    const problem = await Problem.findById(req.params.id);
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid Problem ID' });
+    }
+    const problem = await Problem.findById(id);
     if (!problem) return res.status(404).json({ success: false, message: 'Problem not found' });
 
     const newProject = new Project({
@@ -120,7 +130,12 @@ exports.addComment = async (req, res, next) => {
   try {
     const { text } = req.body;
     const problemId = req.params.id;
-    logger.debug(`Adding comment to problem: \${problemId} by user: \${req.user.id}`);
+    
+    if (!mongoose.Types.ObjectId.isValid(problemId)) {
+      return res.status(400).json({ success: false, message: 'Invalid Problem ID' });
+    }
+
+    logger.debug(`Adding comment to problem: ${problemId} by user: ${req.user.id}`);
 
     if (!text) {
       return res.status(400).json({ success: false, message: 'Comment text is required' });
@@ -154,6 +169,11 @@ exports.addComment = async (req, res, next) => {
 exports.deleteComment = async (req, res, next) => {
   try {
     const { id, commentId } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(commentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID format' });
+    }
+
     const problem = await Problem.findById(id);
 
     if (!problem) {
