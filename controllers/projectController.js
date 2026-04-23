@@ -2,6 +2,9 @@ const Project = require('../models/Project');
 const User = require('../models/User');
 const Message = require('../models/Message');
 const Notification = require('../models/Notification');
+const View = require('../models/View');
+const feedService = require('../utils/feedService');
+const redisClient = require('../config/redisClient');
 const { normalizeSkills } = require('../utils/skillUtils');
 const { clearCacheByPrefix, clearMultiplePrefixes } = require('../utils/cacheUtils');
 const { deleteAsset } = require('../utils/cloudinary');
@@ -69,145 +72,71 @@ exports.createProject = async (req, res, next) => {
 
 exports.getFeed = async (req, res, next) => {
   try {
-    const { type, status, collaborationOpen, ownerId, skills, page = 1, limit = 20, isPassedOut } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const userId = req.user ? req.user.id : 'public';
+    const { shuffle, page = 1, limit = 20 } = req.query;
+    
+    const poolKey = `civic:feed:${userId}:pool`;
+    const pointerKey = `civic:feed:${userId}:pointer`;
 
-    let filter = {};
-    if (status) filter.status = status.toUpperCase();
-    if (ownerId) filter.owner = ownerId;
-
-    if (skills) {
-      const skillsArray = normalizeSkills(skills.split(','));
-      if (skillsArray.length > 0) filter.technologies = { $in: skillsArray };
-    }
-    if (collaborationOpen !== undefined) {
-      filter.isCollaborationOpen = collaborationOpen === 'true' || collaborationOpen === true;
-    }
-
-    // Exclude own projects from general feed
-    if (req.user && req.user.id && !ownerId) {
-      filter.owner = { $ne: req.user.id };
-    }
-
-    // Get user context: following list and skills/interests
-    let followingIds = [];
-    let userSkills = [];
-    let adminIds = [];
-
-    if (req.user && req.user.id) {
-      const user = await User.findById(req.user.id).select('following skills');
-      const admins = await User.find({ isAdmin: true }).select('_id');
-      if (user) {
-        followingIds = (user.following || []).map(id => id.toString());
-        userSkills = normalizeSkills(user.skills || []);
+    // 1. Handle Refresh/Shuffle
+    if (shuffle === 'true' || page == 1) {
+      // Clear existing user-specific feed state on manual refresh or first page
+      if (userId !== 'public') {
+        await redisClient.del(poolKey);
+        await redisClient.del(pointerKey);
       }
-      adminIds = admins.map(a => a._id.toString());
     }
 
-    // Build aggregation with three priority tiers:
-    //   3 = admin post, 2 = following post, 1 = interest match, 0 = everything else
-    const followingObjectIds = followingIds.map(id => {
-      try { return new (require('mongoose').Types.ObjectId)(id); } catch(e) { return null; }
-    }).filter(Boolean);
-    const adminObjectIds = adminIds.map(id => {
-      try { return new (require('mongoose').Types.ObjectId)(id); } catch(e) { return null; }
-    }).filter(Boolean);
+    let projectIds = [];
+    let currentPointer = 0;
 
-    const shuffle = req.query.shuffle === 'true';
-
-    const pipeline = [
-      { $match: filter },
-      { $addFields: {
-        likesCount: { $size: '$likes' },
-        isAdmin: { $cond: [{ $in: ['$owner', adminObjectIds] }, true, false] },
-        isFollowed: { $cond: [{ $in: ['$owner', followingObjectIds] }, true, false] },
-        isInterest: userSkills.length > 0
-          ? { $gt: [{ $size: { $ifNull: [{ $setIntersection: ['$technologies', userSkills] }, []] } }, 0] }
-          : { $literal: false },
-        randomOrder: { $rand: {} } // For variety/shuffle
-      }},
-      { $addFields: {
-        feedPriority: {
-          $switch: {
-            branches: [
-              { case: { $eq: ['$isAdmin', true] }, then: 3 },
-              { case: { $eq: ['$isFollowed', true] }, then: 2 },
-              { case: { $eq: ['$isInterest', true] }, then: 1 },
-            ],
-            default: 0
-          }
+    if (userId !== 'public') {
+      // 2. Try to get feed pool from Redis
+      const cachedPool = await redisClient.get(poolKey);
+      const cachedPointer = await redisClient.get(pointerKey);
+      
+      if (cachedPool) {
+        projectIds = JSON.parse(cachedPool);
+        currentPointer = parseInt(cachedPointer) || 0;
+      } else {
+        // 3. Generate New Feed Pool
+        const user = await User.findById(userId).select('skills');
+        if (user) {
+          projectIds = await feedService.generateRankedPool(user);
+        } else {
+          // Fallback to cold start if user not found
+          const candidates = await feedService.getColdStartCandidates(100);
+          projectIds = candidates.map(c => c._id.toString());
         }
-      }},
-      { $addFields: {
-        totalPopularity: { $add: ["$likesCount", { $ifNull: ["$viewsCount", 0] }] }
-      }}
-    ];
-
-    // Handle "Passed Out Students" filter
-    if (isPassedOut === 'true' || isPassedOut === true) {
-      pipeline.push(
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'owner',
-            foreignField: '_id',
-            as: 'ownerDetails'
-          }
-        },
-        { $unwind: '$ownerDetails' },
-        { 
-          $match: {
-            'ownerDetails.rollNumber': { $exists: true }
-          }
-        },
-        {
-          $addFields: {
-            // Extract first 2 digits of rollNumber
-            joiningYearShort: { $substr: ['$ownerDetails.rollNumber', 0, 2] }
-          }
-        },
-        {
-          $addFields: {
-            joiningYear: { $add: [2000, { $toInt: '$joiningYearShort' }] }
-          }
-        },
-        {
-          $match: {
-            // Joined in 2022 or earlier = Graduated by/in 2026
-            joiningYear: { $lte: 2022 } 
-          }
-        }
-      );
-    }
-
-    const sortOptions = {};
-    if (isPassedOut === 'true' || isPassedOut === true) {
-      // Most popular first: high likes and views
-      sortOptions.totalPopularity = -1;
-      sortOptions.createdAt = -1;
-    } else if (shuffle) {
-      sortOptions.feedPriority = -1;
-      sortOptions.randomOrder = 1;
+        
+        // Cache pool for 10 minutes
+        await redisClient.setEx(poolKey, 600, JSON.stringify(projectIds));
+        currentPointer = 0;
+      }
     } else {
-      sortOptions.feedPriority = -1;
-      sortOptions.likesCount = -1;
-      sortOptions.createdAt = -1;
+      // Public feed (cold start)
+      const candidates = await feedService.getColdStartCandidates(100);
+      projectIds = candidates.map(c => c._id.toString());
+      currentPointer = (parseInt(page) - 1) * parseInt(limit);
     }
 
-    pipeline.push(
-      { $sort: sortOptions },
-      { $skip: skip },
-      { $limit: parseInt(limit) }
-    );
+    // 4. Paginate from Pool
+    const batchIds = projectIds.slice(currentPointer, currentPointer + parseInt(limit));
+    
+    // 5. Fetch Full Project Metadata
+    const projects = await Project.find({ _id: { $in: batchIds } })
+      .populate('owner', 'username fullName profileImage')
+      .populate('originProblemId', 'title');
 
-    let projects = await Project.aggregate(pipeline);
+    // Sort to maintain the ranked order from batchIds
+    const sortedProjects = batchIds.map(id => projects.find(p => p._id.toString() === id.toString())).filter(Boolean);
 
-    await Project.populate(projects, [
-      { path: 'owner', select: 'username fullName profileImage' },
-      { path: 'originProblemId', select: 'title' }
-    ]);
+    // 6. Update Pointer (only for logged-in users)
+    if (userId !== 'public') {
+      await redisClient.setEx(pointerKey, 600, (currentPointer + parseInt(limit)).toString());
+    }
 
-    res.status(200).json(projects);
+    res.status(200).json(sortedProjects);
   } catch (error) {
     next(error);
   }
@@ -748,11 +677,17 @@ exports.recordView = async (req, res, next) => {
     const user = await User.findById(userId);
     if (!user) return res.status(401).json({ message: 'User not found' });
 
-    // Unique view: only add if user hasn't viewed before
+    // Unique view: only add if user hasn't viewed before (in Project model)
     if (!project.views.includes(userId)) {
       project.views.push(userId);
       await project.save();
     }
+
+    // Always record in View model with timestamp for feed exclusion
+    await View.create({
+      user: userId,
+      project: project._id
+    });
 
     res.status(200).json({ views: project.views.length });
   } catch (error) {
