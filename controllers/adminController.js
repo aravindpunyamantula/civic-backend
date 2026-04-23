@@ -3,8 +3,11 @@ const Project = require('../models/Project');
 const Notification = require('../models/Notification');
 const Report = require('../models/Report');
 const BannedIdentifier = require('../models/BannedIdentifier');
-const Comment = require('../models/Comment'); // Assuming Comment model exists
 const Problem = require('../models/Problem');
+const FeedbackForm = require('../models/FeedbackForm');
+const FeedbackResponse = require('../models/FeedbackResponse');
+const Announcement = require('../models/Announcement');
+const rankingService = require('../utils/rankingService');
 
 // @desc    Get all users with pagination
 // @route   GET /api/admin/users
@@ -13,14 +16,27 @@ exports.getAllUsers = async (req, res, next) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
+    const search = req.query.search;
 
-    const users = await User.find()
+    let query = {};
+    if (search) {
+      query = {
+        $or: [
+          { username: { $regex: search, $options: 'i' } },
+          { fullName: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+          { rollNumber: { $regex: search, $options: 'i' } }
+        ]
+      };
+    }
+
+    const users = await User.find(query)
       .select('-password')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const total = await User.countDocuments();
+    const total = await User.countDocuments(query);
 
     res.status(200).json({
       success: true,
@@ -129,7 +145,6 @@ exports.getUserContent = async (req, res, next) => {
     const reports = await Report.find({ target: userId }).populate('reporter', 'username fullName');
     const projects = await Project.find({ owner: userId });
     const problems = await Problem.find({ createdBy: userId });
-    // Assuming we have a way to find comments or discussions the user participated in
     
     res.status(200).json({
       success: true,
@@ -215,6 +230,104 @@ exports.banUser = async (req, res, next) => {
   }
 };
 
+// @desc    Manual trigger coordinator rankings
+// @route   POST /api/admin/trigger-rankings
+exports.triggerRankings = async (req, res, next) => {
+  try {
+    await rankingService.calculateCoordinatorRankings();
+    res.status(200).json({ success: true, message: 'Rankings recalculated successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Create Feedback Form
+// @route   POST /api/admin/feedback
+exports.createFeedbackForm = async (req, res, next) => {
+  try {
+    const { question, description } = req.body;
+    
+    // Deactivate previous active forms
+    await FeedbackForm.updateMany({ isActive: true }, { isActive: false });
+
+    const form = await FeedbackForm.create({
+      question,
+      description,
+      createdBy: req.user.id,
+      isActive: true
+    });
+
+    res.status(201).json({ success: true, data: form });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get Feedback Responses
+// @route   GET /api/admin/feedback/:id/responses
+exports.getFeedbackResponses = async (req, res, next) => {
+  try {
+    const responses = await FeedbackResponse.find({ formId: req.params.id })
+      .populate('userId', 'username fullName profileImage');
+    
+    res.status(200).json({ success: true, data: responses });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Send Targeted Alert (Announcement)
+// @route   POST /api/admin/targeted-alert
+exports.sendTargetedAlert = async (req, res, next) => {
+  try {
+    const { userId, title, content, image, link, type } = req.body;
+    
+    const announcement = await Announcement.create({
+      title,
+      content,
+      image,
+      link,
+      type: type || 'announcement',
+      recipient: userId,
+      createdBy: req.user.id
+    });
+
+    res.status(201).json({ success: true, data: announcement });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get Active Feedback Form
+// @route   GET /api/admin/feedback/active
+exports.getActiveFeedbackForm = async (req, res, next) => {
+  try {
+    const form = await FeedbackForm.findOne({ isActive: true });
+    res.status(200).json({ success: true, data: form });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Submit Feedback Response
+// @route   POST /api/admin/feedback/:id/respond
+exports.submitFeedbackResponse = async (req, res, next) => {
+  try {
+    const { response } = req.body;
+    const feedback = await FeedbackResponse.create({
+      formId: req.params.id,
+      userId: req.user.id,
+      response
+    });
+    res.status(201).json({ success: true, data: feedback });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({ success: false, message: 'You have already responded to this feedback.' });
+    }
+    next(err);
+  }
+};
+
 // @desc    Get platform statistics
 // @route   GET /api/admin/stats
 exports.getStats = async (req, res, next) => {
@@ -222,7 +335,6 @@ exports.getStats = async (req, res, next) => {
     const userCount = await User.countDocuments();
     const projectCount = await Project.countDocuments();
     const problemCount = await Problem.countDocuments();
-    // You can add more stats here if needed, like active projects, recent reports, etc.
 
     res.status(200).json({
       success: true,

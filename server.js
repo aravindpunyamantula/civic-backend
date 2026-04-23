@@ -23,6 +23,8 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const startKeepAlive = require('./utils/keepAlive');
+const cron = require('node-cron');
+const rankingService = require('./utils/rankingService');
 
 // Middleware
 const logger = require('./middleware/logger');
@@ -240,6 +242,15 @@ server.listen(PORT, () => {
   // Start keep-alive ping to prevent sleep on platforms like Render
   const serverUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
   startKeepAlive(serverUrl);
+
+  // Schedule Coordinator Rankings (Daily at 12 AM)
+  cron.schedule('0 0 * * *', async () => {
+    logger.info('[Cron] Starting daily coordinator ranking calculation...');
+    await rankingService.calculateCoordinatorRankings();
+  });
+  
+  // Optional: Run once on startup if the cache is empty
+  // (We'll leave this to the admin or first run for now)
 });
 
 // Handle unhandled promise rejections

@@ -1,14 +1,72 @@
-const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const User = require('../models/User');
+const redisClient = require('../config/redisClient');
+
+exports.getTopCoordinators = async (req, res, next) => {
+  try {
+    const cachedRankings = await redisClient.get('ranking:coordinators');
+    
+    if (cachedRankings) {
+      return res.status(200).json(JSON.parse(cachedRankings));
+    }
+    
+    // Fallback: This should usually be handled by a manual trigger or wait for cron
+    res.status(200).json([]);
+  } catch (error) {
+    next(error);
+  }
+};
 
 exports.getTopProjects = async (req, res, next) => {
   try {
     const topProjects = await Project.aggregate([
-      { $addFields: { likesCount: { $size: "$likes" } } },
-      { $sort: { likesCount: -1, commentsCount: -1 } },
+      // Metadata Scoring
+      {
+        $addFields: {
+          metadataScore: {
+            $add: [
+              { $cond: [{ $gt: [{ $strLenCP: { $ifNull: ["$title", ""] } }, 10] }, 5, 0] },
+              { $cond: [{ $gt: [{ $strLenCP: { $ifNull: ["$description", ""] } }, 50] }, 10, 0] },
+              { $cond: [{ $gt: [{ $size: { $ifNull: ["$media", []] } }, 0] }, 10, 0] },
+              { $cond: [{ $gt: [{ $size: { $ifNull: ["$technologies", []] } }, 0] }, 5, 0] },
+              { $cond: [{ $gt: [{ $size: { $ifNull: ["$links", []] } }, 0] }, 5, 0] }
+            ]
+          },
+          likesCount: { $size: { $ifNull: ["$likes", []] } },
+          viewsCount: { $size: { $ifNull: ["$views", []] } }
+        }
+      },
+      // Engagement Scoring (Like Rate & Discovery Boost)
+      {
+        $addFields: {
+          likeRate: {
+            $cond: [
+              { $eq: ["$viewsCount", 0] },
+              { $cond: [{ $gt: ["$likesCount", 0] }, 1.0, 0.0] },
+              { $divide: ["$likesCount", { $add: ["$viewsCount", 1] }] }
+            ]
+          },
+          discoveryBoost: {
+            $divide: [20, { $ln: { $add: ["$viewsCount", 2] } }]
+          }
+        }
+      },
+      // Total Score Calculation
+      {
+        $addFields: {
+          totalScore: {
+            $add: [
+              "$metadataScore",
+              { $multiply: ["$likeRate", 50] },
+              "$discoveryBoost"
+            ]
+          }
+        }
+      },
+      { $sort: { totalScore: -1 } },
       { $limit: 5 }
     ]);
+
     await Project.populate(topProjects, { path: 'owner', select: 'username fullName profileImage' });
     res.status(200).json(topProjects);
   } catch (error) {
@@ -48,7 +106,7 @@ exports.getTechUsage = async (req, res, next) => {
       { $unwind: "$technologies" },
       { $group: { _id: "$technologies", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
-      { $limit: 20 }
+      { $limit: 6 }
     ]);
     res.status(200).json(techStats);
   } catch (error) {

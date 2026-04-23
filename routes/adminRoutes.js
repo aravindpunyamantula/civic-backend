@@ -23,4 +23,14 @@ router.post('/users/:id/ban', adminController.banUser);
 // Platform Overview
 router.get('/stats', adminController.getStats);
 
+// Coordinator Rankings
+router.post('/trigger-rankings', adminController.triggerRankings);
+
+// Feedback System
+router.post('/feedback', adminController.createFeedbackForm);
+router.get('/feedback/:id/responses', adminController.getFeedbackResponses);
+
+// Targeted Alerts
+router.post('/targeted-alert', adminController.sendTargetedAlert);
+
 module.exports = router;

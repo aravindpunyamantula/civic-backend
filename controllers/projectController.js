@@ -79,8 +79,8 @@ exports.getFeed = async (req, res, next) => {
     const pointerKey = `civic:feed:${userId}:pointer`;
 
     // 1. Handle Refresh/Shuffle
-    if (shuffle === 'true' || page == 1) {
-      // Clear existing user-specific feed state on manual refresh or first page
+    if (shuffle === 'true') {
+      // Clear existing user-specific feed state only on explicit manual refresh
       if (userId !== 'public') {
         await redisClient.del(poolKey);
         await redisClient.del(pointerKey);
@@ -98,6 +98,14 @@ exports.getFeed = async (req, res, next) => {
       if (cachedPool) {
         projectIds = JSON.parse(cachedPool);
         currentPointer = parseInt(cachedPointer) || 0;
+
+        // Auto-regenerate pool if exhausted
+        if (currentPointer >= projectIds.length && projectIds.length > 0) {
+          const user = await User.findById(userId).select('skills');
+          projectIds = await feedService.generateRankedPool(user);
+          await redisClient.setEx(poolKey, 600, JSON.stringify(projectIds));
+          currentPointer = 0;
+        }
       } else {
         // 3. Generate New Feed Pool
         const user = await User.findById(userId).select('skills');

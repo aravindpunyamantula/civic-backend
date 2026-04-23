@@ -7,6 +7,7 @@ const cacheMiddleware = require('../middleware/cacheMiddleware');
 router.get('/top-projects', cacheMiddleware('analytics:top', 600), analyticsController.getTopProjects);
 router.get('/branch-stats', cacheMiddleware('analytics:branches', 600), analyticsController.getBranchStats);
 router.get('/tech-usage', cacheMiddleware('analytics:tech', 600), analyticsController.getTechUsage);
+router.get('/top-coordinators', analyticsController.getTopCoordinators); // No separate cache middleware here as it uses dedicated Redis key
 
 const auth = require('../middleware/authMiddleware');
 const admin = require('../middleware/adminMiddleware');

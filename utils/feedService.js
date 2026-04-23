@@ -80,7 +80,13 @@ class FeedService {
     // new_post_boost = exp(-hours_since_creation / 24)
     const newPostBoost = 10 * Math.exp(-hoursSinceCreation / 24);
 
-    return skillMatchScore + popularityScore + recencyScore + newPostBoost;
+    // Media penalty: Projects without images/videos are pushed to the end
+    const mediaPenalty = (!project.media || project.media.length === 0) ? 50 : 0;
+
+    // Links boost: Small reward for providing external links
+    const linksBoost = (project.links && project.links.length > 0) ? 5 : 0;
+
+    return skillMatchScore + popularityScore + recencyScore + newPostBoost + linksBoost - mediaPenalty;
   }
 
   /**

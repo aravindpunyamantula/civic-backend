@@ -3,9 +3,21 @@ const logger = require('../middleware/logger');
 
 exports.getAnnouncements = async (req, res, next) => {
   try {
-    const announcements = await Announcement.find({ isActive: true })
+    let query = { isActive: true, recipient: null }; // Global announcements
+    
+    if (req.user) {
+      query = {
+        isActive: true,
+        $or: [
+          { recipient: null },
+          { recipient: req.user.id }
+        ]
+      };
+    }
+
+    const announcements = await Announcement.find(query)
       .sort({ createdAt: -1 })
-      .limit(5);
+      .limit(10);
     res.status(200).json(announcements);
   } catch (error) {
     next(error);
@@ -14,7 +26,7 @@ exports.getAnnouncements = async (req, res, next) => {
 
 exports.createAnnouncement = async (req, res, next) => {
   try {
-    const { title, content, image, type } = req.body;
+    const { title, content, image, type, link, recipient } = req.body;
     
     // Check if user is admin
     if (!req.user.isAdmin) {
@@ -26,6 +38,8 @@ exports.createAnnouncement = async (req, res, next) => {
       content,
       image,
       type,
+      link,
+      recipient,
       createdBy: req.user.id,
     });
 
