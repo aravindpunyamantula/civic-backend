@@ -20,7 +20,9 @@ exports.getTopCoordinators = async (req, res, next) => {
 
 exports.getTopProjects = async (req, res, next) => {
   try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const topProjects = await Project.aggregate([
+      { $match: { createdAt: { $gte: twentyFourHoursAgo } } },
       // Metadata Scoring
       {
         $addFields: {
@@ -37,7 +39,7 @@ exports.getTopProjects = async (req, res, next) => {
           viewsCount: { $size: { $ifNull: ["$views", []] } }
         }
       },
-      // Engagement Scoring (Like Rate & Discovery Boost)
+      // Engagement Scoring (Increased weighting for likes and views)
       {
         $addFields: {
           likeRate: {
@@ -49,6 +51,12 @@ exports.getTopProjects = async (req, res, next) => {
           },
           discoveryBoost: {
             $divide: [20, { $ln: { $add: ["$viewsCount", 2] } }]
+          },
+          engagementScore: {
+            $add: [
+              { $multiply: ["$likesCount", 25] }, // Increased from implied 0 to direct weight
+              { $multiply: ["$viewsCount", 5] }   // Direct view weight
+            ]
           }
         }
       },
@@ -58,8 +66,9 @@ exports.getTopProjects = async (req, res, next) => {
           totalScore: {
             $add: [
               "$metadataScore",
-              { $multiply: ["$likeRate", 50] },
-              "$discoveryBoost"
+              { $multiply: ["$likeRate", 100] }, // Increased weight
+              "$discoveryBoost",
+              "$engagementScore"
             ]
           }
         }

@@ -1,5 +1,16 @@
 const mongoose = require('mongoose');
 
+const answerSchema = new mongoose.Schema({
+  questionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true,
+  },
+  answer: {
+    type: String, // Can be "Yes"/"No", text, or option selected
+    required: true,
+  },
+});
+
 const feedbackResponseSchema = new mongoose.Schema({
   formId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -11,8 +22,8 @@ const feedbackResponseSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
-  response: {
-    type: String,
+  answers: {
+    type: [answerSchema],
     required: true,
   },
 }, { timestamps: true });

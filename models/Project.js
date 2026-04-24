@@ -44,6 +44,7 @@ const ProjectSchema = new mongoose.Schema({
     requestedAt: { type: Date, default: Date.now }
   }],
   collaborationRoles: { type: [String], default: [] },
+  tags: { type: [String], default: [] },
   originProblemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Problem', required: false }
 }, { timestamps: true });
 

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const User = require('../models/User');
+const Tag = require('../models/Tag');
 const Message = require('../models/Message');
 const Notification = require('../models/Notification');
 const View = require('../models/View');
@@ -13,7 +14,7 @@ const logger = require('../middleware/logger');
 
 exports.createProject = async (req, res, next) => {
   try {
-    const { title, description, technologies, status, isCollaborationOpen, media, githubLink, links, teamMembers, collaborationRoles } = req.body;
+    const { title, description, technologies, status, isCollaborationOpen, media, githubLink, links, teamMembers, collaborationRoles, tags } = req.body;
 
     // Strict Validation
     if (!title || title.trim() === '') {
@@ -44,7 +45,8 @@ exports.createProject = async (req, res, next) => {
       githubLink,
       links: links || [],
       owner: req.user.id,
-      teamMembers
+      teamMembers,
+      tags: Array.isArray(tags) ? tags : []
     });
 
     // Auto-add team members with userIds as collaborators
@@ -174,29 +176,6 @@ exports.getProjectById = async (req, res, next) => {
   }
 };
 
-exports.getRecommendedProjects = async (req, res, next) => {
-  try {
-    const feedService = require('../utils/feedService');
-    const limit = parseInt(req.query.limit) || 10;
-    
-    // For now, return a generic recommendation or use generateRankedPool if user is logged in
-    let projectIds = [];
-    if (req.user) {
-      const user = await User.findById(req.user.id);
-      projectIds = await feedService.generateRankedPool(user, { limit });
-    } else {
-      projectIds = await feedService.getColdStartCandidates(limit);
-    }
-    
-    const projects = await Project.find({ _id: { $in: projectIds } })
-      .populate('owner', 'username fullName profileImage')
-      .limit(limit);
-      
-    res.status(200).json(projects);
-  } catch (error) {
-    next(error);
-  }
-};
 
 exports.getUserProjects = async (req, res, next) => {
   console.log('Fetching projects for user ID:', req.params.userId);
@@ -443,11 +422,12 @@ exports.updateProject = async (req, res, next) => {
     if (project.owner.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Unauthorized: Only the owner can update this project' });
     }
-
-    const { title, description, technologies, status, isCollaborationOpen, media, githubLink, links, teamMembers, collaborationRoles } = req.body;
-
+ 
+    const { title, description, technologies, status, isCollaborationOpen, media, githubLink, links, teamMembers, collaborationRoles, tags } = req.body;
+ 
     if (title) project.title = title;
     if (description) project.description = description;
+    if (tags && Array.isArray(tags)) project.tags = tags;
     if (technologies && Array.isArray(technologies)) {
       project.technologies = normalizeSkills(technologies);
     }
@@ -532,9 +512,6 @@ exports.deleteProject = async (req, res, next) => {
   }
 };
 
-// addComment removed
-
-// addComment removed
 
 exports.getChatHistory = async (req, res) => {
   try {
@@ -717,20 +694,80 @@ exports.recordView = async (req, res, next) => {
     
     const user = await User.findById(userId);
     if (!user) return res.status(401).json({ message: 'User not found' });
-
+ 
     // Unique view: only add if user hasn't viewed before (in Project model)
     if (!project.views.includes(userId)) {
       project.views.push(userId);
       await project.save();
     }
-
+ 
     // Always record in View model with timestamp for feed exclusion
     await View.create({
       user: userId,
       project: project._id
     });
-
+ 
     res.status(200).json({ views: project.views.length });
+  } catch (error) {
+    next(error);
+  }
+};
+ 
+exports.getTopSkills = async (req, res, next) => {
+  try {
+    const users = await User.find({}, 'skills');
+    const skillCounts = {};
+    
+    users.forEach(user => {
+      user.skills.forEach(skill => {
+        const normalized = skill.toLowerCase().trim();
+        skillCounts[normalized] = (skillCounts[normalized] || 0) + 1;
+      });
+    });
+ 
+    const topSkills = Object.entries(skillCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([skill]) => skill);
+ 
+    res.status(200).json(topSkills);
+  } catch (error) {
+    next(error);
+  }
+};
+ 
+exports.getTags = async (req, res, next) => {
+  try {
+    const tags = await Tag.find().sort({ name: 1 });
+    res.status(200).json(tags.map(t => t.name));
+  } catch (error) {
+    next(error);
+  }
+};
+ 
+exports.createTag = async (req, res, next) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ message: 'Access denied: Admins only' });
+    
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ message: 'Tag name is required' });
+ 
+    const tag = new Tag({ name });
+    await tag.save();
+    res.status(201).json(tag);
+  } catch (error) {
+    if (error.code === 11000) return res.status(400).json({ message: 'Tag already exists' });
+    next(error);
+  }
+};
+ 
+exports.deleteTag = async (req, res, next) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ message: 'Access denied: Admins only' });
+    
+    const { name } = req.params;
+    await Tag.findOneAndDelete({ name });
+    res.status(200).json({ message: 'Tag deleted successfully' });
   } catch (error) {
     next(error);
   }

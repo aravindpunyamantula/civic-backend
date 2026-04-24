@@ -10,11 +10,6 @@ router.get('/feed', optionalAuth, cacheMiddleware('feed', 600), projectControlle
 
 // Get User Projects
 router.get('/user/discussions', authMiddleware, projectController.getUserDiscussions);
-router.get('/user/saved', authMiddleware, projectController.getSavedProjects);
-router.get('/user/:userId', cacheMiddleware('user_projects', 600), projectController.getUserProjects);
-
-// Recommendations
-router.get('/recommended', optionalAuth, projectController.getRecommendedProjects);
 
 // Get Project by id
 router.get('/:id', cacheMiddleware('project_detail', 600), projectController.getProjectById);
@@ -40,7 +35,13 @@ router.post('/:id/accept-request', authMiddleware, projectController.acceptColla
 router.post('/:id/reject-request', authMiddleware, projectController.rejectCollabRequest);
 router.get('/:id/messages', authMiddleware, projectController.getChatHistory);
 router.delete('/:id/messages/:messageId', authMiddleware, projectController.deleteMessage);
-router.post('/:id/collaborators', authMiddleware, projectController.addCollaborator);
+router.get('/:id/collaborators', authMiddleware, projectController.addCollaborator);
 router.delete('/:id/collaborators/:userId', authMiddleware, projectController.removeCollaborator);
+
+// Global Stats and Tags
+router.get('/meta/top-skills', projectController.getTopSkills);
+router.get('/meta/tags', projectController.getTags);
+router.post('/meta/tags', authMiddleware, projectController.createTag);
+router.delete('/meta/tags/:name', authMiddleware, projectController.deleteTag);
 
 module.exports = router;

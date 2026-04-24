@@ -18,7 +18,9 @@ router.get('/reports/categorized', adminController.getReportedUsersCategorized);
 router.get('/users/:id/content', adminController.getUserContent);
 router.post('/users/:id/warn', adminController.warnUser);
 router.post('/users/:id/suspend', adminController.suspendUser);
+router.post('/users/:id/unsuspend', adminController.unsuspendUser);
 router.post('/users/:id/ban', adminController.banUser);
+router.post('/users/:id/unban', adminController.unbanUser);
 
 // Platform Overview
 router.get('/stats', adminController.getStats);

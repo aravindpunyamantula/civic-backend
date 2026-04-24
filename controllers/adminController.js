@@ -31,11 +31,41 @@ exports.getAllUsers = async (req, res, next) => {
       };
     }
 
-    const users = await User.find(query)
-      .select('-password')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    const users = await User.aggregate([
+      { $match: query },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'projects',
+          localField: '_id',
+          foreignField: 'owner',
+          as: 'projects'
+        }
+      },
+      {
+        $lookup: {
+          from: 'problems',
+          localField: '_id',
+          foreignField: 'createdBy',
+          as: 'problems'
+        }
+      },
+      {
+        $addFields: {
+          projectCount: { $size: '$projects' },
+          problemCount: { $size: '$problems' }
+        }
+      },
+      {
+        $project: {
+          password: 0,
+          projects: 0,
+          problems: 0
+        }
+      }
+    ]);
 
     const total = await User.countDocuments(query);
 
@@ -254,6 +284,54 @@ exports.banUser = async (req, res, next) => {
   }
 };
 
+// @desc    Unsuspend a user
+// @route   POST /api/admin/users/:id/unsuspend
+exports.unsuspendUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid User ID' });
+    }
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    user.suspensionExpiresAt = null;
+    await user.save();
+
+    res.status(200).json({ success: true, message: 'User unsuspended', data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Unban a user
+// @route   POST /api/admin/users/:id/unban
+exports.unbanUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid User ID' });
+    }
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    user.isPermanentlyBanned = false;
+    
+    // Remove identifiers from BannedIdentifier
+    const identifiers = [user.email, user.rollNumber];
+    if (user.phoneNumber) identifiers.push(user.phoneNumber);
+    if (user.personalEmail) identifiers.push(user.personalEmail);
+
+    await BannedIdentifier.deleteMany({ value: { $in: identifiers } });
+
+    await user.save();
+
+    res.status(200).json({ success: true, message: 'User unbanned', data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // @desc    Manual trigger coordinator rankings
 // @route   POST /api/admin/trigger-rankings
 exports.triggerRankings = async (req, res, next) => {
@@ -269,14 +347,15 @@ exports.triggerRankings = async (req, res, next) => {
 // @route   POST /api/admin/feedback
 exports.createFeedbackForm = async (req, res, next) => {
   try {
-    const { question, description } = req.body;
+    const { title, description, questions } = req.body;
     
     // Deactivate previous active forms
     await FeedbackForm.updateMany({ isActive: true }, { isActive: false });
 
     const form = await FeedbackForm.create({
-      question,
+      title,
       description,
+      questions,
       createdBy: req.user.id,
       isActive: true
     });
@@ -337,11 +416,11 @@ exports.getActiveFeedbackForm = async (req, res, next) => {
 // @route   POST /api/admin/feedback/:id/respond
 exports.submitFeedbackResponse = async (req, res, next) => {
   try {
-    const { response } = req.body;
+    const { answers } = req.body;
     const feedback = await FeedbackResponse.create({
       formId: req.params.id,
       userId: req.user.id,
-      response
+      answers
     });
     res.status(201).json({ success: true, data: feedback });
   } catch (err) {

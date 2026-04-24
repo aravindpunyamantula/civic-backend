@@ -1,7 +1,24 @@
 const mongoose = require('mongoose');
 
+const questionSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  type: {
+    type: String,
+    enum: ['yes_no', 'descriptive', 'multiple_choice'],
+    required: true,
+  },
+  options: {
+    type: [String], // Only for multiple_choice
+    default: [],
+  },
+});
+
 const feedbackFormSchema = new mongoose.Schema({
-  question: {
+  title: {
     type: String,
     required: true,
     trim: true,
@@ -9,6 +26,10 @@ const feedbackFormSchema = new mongoose.Schema({
   description: {
     type: String,
     trim: true,
+  },
+  questions: {
+    type: [questionSchema],
+    required: true,
   },
   isActive: {
     type: Boolean,
