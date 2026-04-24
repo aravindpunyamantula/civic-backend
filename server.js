@@ -22,6 +22,7 @@ const problemRoutes = require('./routes/problemRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
+const feedbackRoutes = require('./routes/feedbackRoutes');
 const startKeepAlive = require('./utils/keepAlive');
 const cron = require('node-cron');
 const rankingService = require('./utils/rankingService');
@@ -111,6 +112,7 @@ app.use('/api/problems', problemRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Error Handling Middleware (Must be last)
 app.use(errorHandler);
