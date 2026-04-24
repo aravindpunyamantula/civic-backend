@@ -10,6 +10,7 @@ router.get('/feed', optionalAuth, cacheMiddleware('feed', 600), projectControlle
 
 // Get User Projects
 router.get('/user/discussions', authMiddleware, projectController.getUserDiscussions);
+router.get('/user/:userId', projectController.getUserProjects);
 
 // Get Project by id
 router.get('/:id', cacheMiddleware('project_detail', 600), projectController.getProjectById);

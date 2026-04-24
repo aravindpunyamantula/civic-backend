@@ -30,6 +30,10 @@ router.post('/trigger-rankings', adminController.triggerRankings);
 
 // Feedback System
 router.post('/feedback', adminController.createFeedbackForm);
+router.get('/feedback', adminController.getAllFeedbackForms);
+router.put('/feedback/:id', adminController.updateFeedbackForm);
+router.delete('/feedback/:id', adminController.deleteFeedbackForm);
+router.patch('/feedback/:id/toggle', adminController.toggleFeedbackStatus);
 router.get('/feedback/:id/responses', adminController.getFeedbackResponses);
 
 // Targeted Alerts

@@ -379,6 +379,71 @@ exports.getFeedbackResponses = async (req, res, next) => {
   }
 };
 
+// @desc    Get All Feedback Forms
+// @route   GET /api/admin/feedback
+exports.getAllFeedbackForms = async (req, res, next) => {
+  try {
+    const forms = await FeedbackForm.find().sort({ createdAt: -1 });
+    res.status(200).json({ success: true, data: forms });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Update Feedback Form
+// @route   PUT /api/admin/feedback/:id
+exports.updateFeedbackForm = async (req, res, next) => {
+  try {
+    const { title, description, questions } = req.body;
+    const form = await FeedbackForm.findByIdAndUpdate(
+      req.params.id,
+      { title, description, questions },
+      { new: true, runValidators: true }
+    );
+    if (!form) return res.status(404).json({ success: false, message: 'Form not found' });
+    res.status(200).json({ success: true, data: form });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Delete Feedback Form
+// @route   DELETE /api/admin/feedback/:id
+exports.deleteFeedbackForm = async (req, res, next) => {
+  try {
+    const form = await FeedbackForm.findByIdAndDelete(req.params.id);
+    if (!form) return res.status(404).json({ success: false, message: 'Form not found' });
+    
+    // Also delete associated responses
+    await FeedbackResponse.deleteMany({ formId: req.params.id });
+    
+    res.status(200).json({ success: true, message: 'Form and responses deleted' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Toggle Feedback Form active status
+// @route   PATCH /api/admin/feedback/:id/toggle
+exports.toggleFeedbackStatus = async (req, res, next) => {
+  try {
+    const form = await FeedbackForm.findById(req.params.id);
+    if (!form) return res.status(404).json({ success: false, message: 'Form not found' });
+
+    // If we are activating this form, deactivate all others
+    if (!form.isActive) {
+      await FeedbackForm.updateMany({ _id: { $ne: form._id } }, { isActive: false });
+    }
+
+    form.isActive = !form.isActive;
+    await form.save();
+
+    res.status(200).json({ success: true, data: form });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // @desc    Send Targeted Alert (Announcement)
 // @route   POST /api/admin/targeted-alert
 exports.sendTargetedAlert = async (req, res, next) => {
